@@ -15,7 +15,7 @@ import { z } from 'zod';
 import { ApiError } from '@/src/api/client';
 import { FormTextInput } from '@/src/components/FormTextInput';
 import { useSessionStore } from '@/src/store/session';
-import { colors, radius, spacing } from '@/src/theme';
+import { colors, radii, sizes, spacing, typography } from '@/src/theme/tokens';
 
 const schema = z.object({
   email: z.string().min(1, 'Ingresá tu email').email('Ingresá un email válido'),
@@ -112,7 +112,7 @@ export default function SignInScreen() {
             testID="submit-button"
           >
             {isSubmitting ? (
-              <ActivityIndicator color={colors.primaryText} />
+              <ActivityIndicator color={colors.onPrimary} />
             ) : (
               <Text style={styles.buttonText}>Ingresar</Text>
             )}
@@ -135,30 +135,29 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: colors.text,
+    ...typography.titleScreen,
+    color: colors.textPrimary,
   },
   subtitle: {
-    fontSize: 15,
-    color: colors.textMuted,
+    ...typography.bodyDefault,
+    color: colors.textSecondary,
   },
   form: {
     gap: spacing.md,
   },
   serverError: {
-    backgroundColor: colors.dangerBackground,
-    borderRadius: radius.sm,
+    backgroundColor: colors.errorContainer,
+    borderRadius: radii.control,
     padding: spacing.sm,
   },
   serverErrorText: {
-    color: colors.danger,
-    fontSize: 14,
+    ...typography.caption,
+    color: colors.onErrorContainer,
   },
   button: {
-    backgroundColor: colors.primary,
-    borderRadius: radius.sm,
-    paddingVertical: spacing.sm + 4,
+    height: sizes.controlHeight,
+    backgroundColor: colors.primaryContainer,
+    borderRadius: radii.control,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: spacing.xs,
@@ -167,8 +166,7 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   buttonText: {
-    color: colors.primaryText,
-    fontSize: 16,
-    fontWeight: '600',
+    ...typography.bodyMedium,
+    color: colors.onPrimary,
   },
 });

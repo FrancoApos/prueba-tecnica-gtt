@@ -1,5 +1,5 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
-import { colors, spacing } from '@/src/theme';
+import { colors, radii, spacing, typography } from '@/src/theme/tokens';
 
 interface StateViewProps {
   title: string;
@@ -49,25 +49,24 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   title: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
+    ...typography.bodyMedium,
+    color: colors.textPrimary,
     textAlign: 'center',
   },
   description: {
-    fontSize: 14,
-    color: colors.textMuted,
+    ...typography.caption,
+    color: colors.textTertiary,
     textAlign: 'center',
   },
   retryButton: {
     marginTop: spacing.sm,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.primaryContainer,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
-    borderRadius: 999,
+    borderRadius: radii.pill,
   },
   retryText: {
-    color: colors.primaryText,
-    fontWeight: '600',
+    ...typography.bodyMedium,
+    color: colors.onPrimary,
   },
 });

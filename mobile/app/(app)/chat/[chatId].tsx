@@ -21,7 +21,7 @@ import { MessageBubble } from '@/src/components/MessageBubble';
 import { useMessages } from '@/src/hooks/useMessages';
 import type { OutgoingAttachment } from '@/src/api/messages';
 import { useSessionStore } from '@/src/store/session';
-import { colors, radius, spacing } from '@/src/theme';
+import { colors, radii, sizes, spacing, typography } from '@/src/theme/tokens';
 import type { Message } from '@/src/types/api';
 
 export default function ConversationScreen() {
@@ -106,7 +106,7 @@ export default function ConversationScreen() {
                 firstName={contactName?.split(' ')[0] ?? ''}
                 lastName={contactName?.split(' ')[1] ?? ''}
                 avatarUrl={contactAvatar || null}
-                size={32}
+                size={sizes.avatarConversationHeader}
               />
               <Text style={styles.headerName} numberOfLines={1}>
                 {contactName}
@@ -139,12 +139,12 @@ export default function ConversationScreen() {
 
       <View style={styles.inputBar}>
         <Pressable onPress={pickAndSendAttachment} hitSlop={10} style={styles.attachButton} testID="attach-button">
-          <Ionicons name="add-circle-outline" size={28} color={colors.primary} />
+          <Ionicons name="add" size={22} color={colors.textSecondary} />
         </Pressable>
         <TextInput
           style={styles.textInput}
           placeholder="Escribí un mensaje..."
-          placeholderTextColor={colors.textMuted}
+          placeholderTextColor={colors.textTertiary}
           value={text}
           onChangeText={setText}
           multiline
@@ -157,9 +157,9 @@ export default function ConversationScreen() {
           testID="send-button"
         >
           {sending ? (
-            <ActivityIndicator color={colors.primaryText} size="small" />
+            <ActivityIndicator color={colors.onPrimary} size="small" />
           ) : (
-            <Ionicons name="send" size={18} color={colors.primaryText} />
+            <Ionicons name="send" size={18} color={colors.onPrimary} />
           )}
         </Pressable>
       </View>
@@ -175,9 +175,8 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   headerName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
+    ...typography.conversationHeaderName,
+    color: colors.textPrimary,
     maxWidth: 180,
   },
   listContent: {
@@ -193,25 +192,31 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
   attachButton: {
-    paddingBottom: 6,
+    width: sizes.sendButton,
+    height: sizes.sendButton,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surfaceContainerLow,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   textInput: {
     flex: 1,
     maxHeight: 100,
+    minHeight: sizes.iconButtonHitArea,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radius.lg,
-    paddingHorizontal: spacing.sm + 4,
+    borderRadius: radii.pill,
+    paddingHorizontal: spacing.lg,
     paddingVertical: spacing.sm,
-    fontSize: 15,
-    color: colors.text,
+    ...typography.bodyDefault,
+    color: colors.textPrimary,
     backgroundColor: colors.background,
   },
   sendButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.primary,
+    width: sizes.sendButton,
+    height: sizes.sendButton,
+    borderRadius: radii.pill,
+    backgroundColor: colors.primaryContainer,
     alignItems: 'center',
     justifyContent: 'center',
   },

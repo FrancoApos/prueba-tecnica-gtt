@@ -5,7 +5,7 @@ import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-nat
 import { ChatListItem } from '@/src/components/ChatListItem';
 import { EmptyState, ErrorState, LoadingState } from '@/src/components/StateView';
 import { useChatsStore } from '@/src/store/chats';
-import { colors } from '@/src/theme';
+import { colors, radii, shadows, sizes, spacing } from '@/src/theme/tokens';
 
 export default function ChatsListScreen() {
   const chats = useChatsStore((s) => s.chats);
@@ -21,20 +21,7 @@ export default function ChatsListScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen
-        options={{
-          title: 'Chats',
-          headerRight: () => (
-            <Pressable
-              onPress={() => router.push('/(app)/new-chat')}
-              hitSlop={12}
-              testID="new-chat-button"
-            >
-              <Ionicons name="create-outline" size={24} color={colors.primary} />
-            </Pressable>
-          ),
-        }}
-      />
+      <Stack.Screen options={{ title: 'Chats' }} />
 
       {status === 'loading' && chats.length === 0 && <LoadingState label="Cargando chats..." />}
 
@@ -49,7 +36,7 @@ export default function ChatsListScreen() {
       {status === 'ready' && chats.length === 0 && (
         <EmptyState
           title="Todavía no tenés chats"
-          description="Tocá el ícono de arriba para empezar una conversación"
+          description="Tocá el botón de abajo para empezar una conversación"
         />
       )}
 
@@ -78,6 +65,14 @@ export default function ChatsListScreen() {
           }
         />
       )}
+
+      <Pressable
+        style={styles.fab}
+        onPress={() => router.push('/(app)/new-chat')}
+        testID="new-chat-button"
+      >
+        <Ionicons name="create" size={24} color={colors.onPrimary} />
+      </Pressable>
     </View>
   );
 }
@@ -90,6 +85,19 @@ const styles = StyleSheet.create({
   separator: {
     height: StyleSheet.hairlineWidth,
     backgroundColor: colors.border,
-    marginLeft: 76,
+    // Inset para alinear con el texto de la fila, no con el avatar.
+    marginLeft: sizes.avatarListRow + spacing.lg + spacing.md,
+  },
+  fab: {
+    position: 'absolute',
+    right: spacing.lg,
+    bottom: sizes.fabOffsetBottom,
+    width: sizes.fab,
+    height: sizes.fab,
+    borderRadius: radii.pill,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadows.light.fab,
   },
 });

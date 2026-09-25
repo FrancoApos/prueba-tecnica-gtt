@@ -1,5 +1,5 @@
 import { StyleSheet, Text, TextInput, type TextInputProps, View } from 'react-native';
-import { colors, radius, spacing } from '@/src/theme';
+import { colors, radii, sizes, spacing, typography } from '@/src/theme/tokens';
 
 interface FormTextInputProps extends TextInputProps {
   label: string;
@@ -12,7 +12,7 @@ export function FormTextInput({ label, error, style, ...inputProps }: FormTextIn
       <Text style={styles.label}>{label}</Text>
       <TextInput
         style={[styles.input, error && styles.inputError, style]}
-        placeholderTextColor={colors.textMuted}
+        placeholderTextColor={colors.textTertiary}
         {...inputProps}
       />
       {error && (
@@ -29,25 +29,25 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   label: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text,
+    ...typography.sectionLabel,
+    textTransform: 'uppercase',
+    color: colors.textPrimary,
   },
   input: {
+    height: sizes.controlHeight,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.sm + 4,
-    paddingVertical: spacing.sm + 2,
-    fontSize: 15,
-    color: colors.text,
-    backgroundColor: colors.surface,
+    borderRadius: radii.control,
+    paddingHorizontal: spacing.lg,
+    ...typography.bodyDefault,
+    color: colors.textPrimary,
+    backgroundColor: colors.surfaceContainerLow,
   },
   inputError: {
-    borderColor: colors.danger,
+    borderColor: colors.error,
   },
   error: {
-    fontSize: 12,
-    color: colors.danger,
+    ...typography.caption,
+    color: colors.error,
   },
 });

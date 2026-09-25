@@ -69,13 +69,15 @@ src/
 └── config.ts                  URL de la API (EXPO_PUBLIC_API_URL) y resolución de URLs de adjuntos
 ```
 
-## Decisiones relevantes (resumen)
+## Decisiones y alcance
 
 Detalle completo en [`../docs/DECISIONS.md`](../docs/DECISIONS.md).
 
-- **Sin pantalla de registro**: la consigna solo pide login. La creación de usuarios es responsabilidad del backend (`POST /users`, usado por el seed). Para poder iniciar una conversación nueva desde la app (necesario para que el flujo "listado → conversación" sea usable, no solo con chats preexistentes) se agregó una pantalla mínima de "Nuevo chat" que busca usuarios ya dados de alta y abre/crea el chat — no es una funcionalidad pedida explícitamente, pero es indispensable para poder demostrar el flujo completo.
+- **Sin pantalla de registro**: la consigna solo pide login. La creación de usuarios es responsabilidad del backend (`POST /users`, usado por el seed). Para poder iniciar una conversación nueva desde la app (necesario para que el flujo "listado → conversación" sea usable, no solo con chats preexistentes) se agregó una pantalla mínima de "Nuevo chat" que busca usuarios ya dados de alta y abre/crea el chat — no es una funcionalidad pedida explícitamente, pero es indispensable para poder demostrar el flujo completo. Se dispara desde un FAB en el listado de chats (siguiendo el diseño de Stitch).
 - **No se edita el avatar desde la app**: el backend solo acepta una URL de imagen para `avatarUrl` (no upload de archivo en el perfil), así que no tiene una buena UX en mobile — se dejó fuera del alcance.
 - **Adjuntos**: se pueden enviar imagen (`expo-image-picker`) o archivo (`expo-document-picker`); se envían de una junto con el texto actual del campo, sin paso de "previsualizar antes de enviar" (simplificación consciente).
+- **Diseño**: la UI sigue el design system "Pulse Chat" generado en Stitch (ver `docs/design/`) — colores, tipografía (Inter), spacing y radios viven como tokens en `src/theme/tokens.ts`, sin valores sueltos en los componentes.
+- **Dark mode: tokens listos, sin implementar.** `src/theme/tokens.ts` exporta `palette.light` y `palette.dark` completos (extraídos de Stitch), pero la app solo consume `palette.light` — no hay switching real. Es una decisión deliberada: la consigna no pide dark mode en ningún punto, y cablear el cambio de tema implicaría enhebrarlo por todos los componentes (lógica nueva, no solo estilos). El camino natural para implementarlo sería `useColorScheme()` de React Native (seguir el tema del sistema) o un `ThemeContext` (si se quisiera un toggle manual en la app), leyendo de `palette` según corresponda.
 
 ## Tests
 

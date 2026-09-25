@@ -1,6 +1,6 @@
 import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { resolveAssetUrl } from '@/src/config';
-import { colors, radius, spacing } from '@/src/theme';
+import { colors, radii, spacing, typography } from '@/src/theme/tokens';
 import { formatRelativeTimestamp } from '@/src/utils/format';
 import type { Message } from '@/src/types/api';
 
@@ -45,7 +45,7 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
-    marginVertical: 2,
+    marginVertical: spacing.xs,
     paddingHorizontal: spacing.md,
   },
   rowOwn: {
@@ -56,50 +56,52 @@ const styles = StyleSheet.create({
   },
   bubble: {
     maxWidth: '78%',
-    borderRadius: radius.lg,
-    paddingHorizontal: spacing.sm + 4,
-    paddingVertical: spacing.sm,
-    gap: 4,
+    borderRadius: radii.bubble,
+    padding: spacing.md,
+    gap: spacing.xs,
   },
   bubbleOwn: {
-    backgroundColor: colors.bubbleOwn,
-    borderBottomRightRadius: 4,
+    backgroundColor: colors.primaryContainer,
+    borderBottomRightRadius: radii.bubbleTail,
   },
   bubbleOther: {
-    backgroundColor: colors.bubbleOther,
-    borderBottomLeftRadius: 4,
+    backgroundColor: colors.surfaceContainerLow,
+    borderBottomLeftRadius: radii.bubbleTail,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
   textOwn: {
-    color: colors.bubbleOwnText,
-    fontSize: 15,
+    ...typography.bodyDefault,
+    color: colors.onPrimary,
   },
   textOther: {
-    color: colors.bubbleOtherText,
-    fontSize: 15,
+    ...typography.bodyDefault,
+    color: colors.textPrimary,
   },
   image: {
     width: 200,
     height: 200,
-    borderRadius: radius.sm,
-    marginBottom: 4,
+    borderRadius: radii.control,
+    marginBottom: spacing.xs,
   },
   fileChip: {
-    paddingVertical: 4,
+    paddingVertical: spacing.xs,
   },
   fileChipText: {
-    fontSize: 14,
+    ...typography.caption,
     textDecorationLine: 'underline',
   },
   timestamp: {
-    fontSize: 11,
+    ...typography.timestamp,
     alignSelf: 'flex-end',
   },
   timestampOwn: {
-    color: 'rgba(255,255,255,0.75)',
+    // onPrimary (blanco) al 70% — valor literal porque es una variante de
+    // opacidad de un token, no un color nuevo; tomado 1 a 1 del HTML real
+    // de Stitch (`color: rgba(255, 255, 255, 0.7)`).
+    color: 'rgba(255,255,255,0.7)',
   },
   timestampOther: {
-    color: colors.textMuted,
+    color: colors.textTertiary,
   },
 });

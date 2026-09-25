@@ -7,7 +7,7 @@ import { Avatar } from '@/src/components/Avatar';
 import { EmptyState, ErrorState } from '@/src/components/StateView';
 import { useChatsStore } from '@/src/store/chats';
 import { useSessionStore } from '@/src/store/session';
-import { colors, radius, spacing } from '@/src/theme';
+import { colors, radii, sizes, spacing, typography } from '@/src/theme/tokens';
 import type { User } from '@/src/types/api';
 
 export default function NewChatScreen() {
@@ -70,7 +70,7 @@ export default function NewChatScreen() {
       <TextInput
         style={styles.search}
         placeholder="Buscar por nombre o email"
-        placeholderTextColor={colors.textMuted}
+        placeholderTextColor={colors.textTertiary}
         value={search}
         onChangeText={setSearch}
         autoFocus
@@ -102,7 +102,7 @@ export default function NewChatScreen() {
               disabled={openingChatFor !== null}
               testID={`user-row-${item.id}`}
             >
-              <Avatar firstName={item.firstName} lastName={item.lastName} avatarUrl={item.avatarUrl} size={40} />
+              <Avatar firstName={item.firstName} lastName={item.lastName} avatarUrl={item.avatarUrl} size={sizes.avatarSearchRow} />
               <View style={styles.userInfo}>
                 <Text style={styles.userName}>
                   {item.firstName} {item.lastName}
@@ -126,14 +126,14 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   search: {
+    height: sizes.controlHeight,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.sm + 4,
-    paddingVertical: spacing.sm + 2,
-    fontSize: 15,
-    backgroundColor: colors.surface,
-    color: colors.text,
+    borderRadius: radii.control,
+    paddingHorizontal: spacing.lg,
+    ...typography.bodyDefault,
+    backgroundColor: colors.surfaceContainerLow,
+    color: colors.textPrimary,
   },
   loading: {
     paddingTop: spacing.lg,
@@ -142,19 +142,18 @@ const styles = StyleSheet.create({
   userRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm + 4,
-    paddingVertical: spacing.sm + 4,
+    gap: spacing.md,
+    paddingVertical: spacing.md,
   },
   userInfo: {
     flex: 1,
   },
   userName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.text,
+    ...typography.bodyMedium,
+    color: colors.textPrimary,
   },
   userEmail: {
-    fontSize: 13,
-    color: colors.textMuted,
+    ...typography.caption,
+    color: colors.textTertiary,
   },
 });

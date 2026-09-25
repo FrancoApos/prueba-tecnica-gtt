@@ -1,5 +1,5 @@
 import { Image, StyleSheet, Text, View } from 'react-native';
-import { colors } from '@/src/theme';
+import { colors, sizes } from '@/src/theme/tokens';
 import { getInitials } from '@/src/utils/format';
 import type { ConnectionStatus } from '@/src/types/api';
 
@@ -11,7 +11,7 @@ interface AvatarProps {
   size?: number;
 }
 
-export function Avatar({ firstName, lastName, avatarUrl, status, size = 48 }: AvatarProps) {
+export function Avatar({ firstName, lastName, avatarUrl, status, size = sizes.avatarListRow }: AvatarProps) {
   const dimensionStyle = { width: size, height: size, borderRadius: size / 2 };
 
   return (
@@ -27,7 +27,7 @@ export function Avatar({ firstName, lastName, avatarUrl, status, size = 48 }: Av
         <View
           style={[
             styles.statusDot,
-            { backgroundColor: status === 'online' ? colors.online : colors.offline },
+            { backgroundColor: status === 'online' ? colors.success : colors.offline },
           ]}
           testID="status-dot"
         />
@@ -49,17 +49,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   initials: {
-    color: colors.primaryText,
+    color: colors.onPrimary,
     fontWeight: '600',
   },
   statusDot: {
     position: 'absolute',
     right: 0,
     bottom: 0,
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    width: sizes.statusDot,
+    height: sizes.statusDot,
+    borderRadius: sizes.statusDot / 2,
     borderWidth: 2,
-    borderColor: colors.surface,
+    borderColor: colors.background,
   },
 });

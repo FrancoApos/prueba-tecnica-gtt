@@ -1,6 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/src/components/Avatar';
-import { colors, spacing } from '@/src/theme';
+import { colors, sizes, spacing, typography } from '@/src/theme/tokens';
 import { formatRelativeTimestamp } from '@/src/utils/format';
 import type { Chat } from '@/src/types/api';
 
@@ -48,17 +48,17 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm + 4,
-    gap: spacing.sm + 4,
-    backgroundColor: colors.surface,
+    height: sizes.chatRowHeight,
+    paddingHorizontal: spacing.lg,
+    gap: spacing.md,
+    backgroundColor: colors.background,
   },
   pressed: {
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceContainerLow,
   },
   content: {
     flex: 1,
-    gap: 2,
+    gap: spacing.xs,
   },
   headerRow: {
     flexDirection: 'row',
@@ -66,18 +66,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   name: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
+    ...typography.bodyMedium,
+    color: colors.textPrimary,
     flexShrink: 1,
   },
   timestamp: {
-    fontSize: 12,
-    color: colors.textMuted,
+    ...typography.timestamp,
+    color: colors.textTertiary,
     marginLeft: spacing.sm,
   },
   preview: {
-    fontSize: 14,
-    color: colors.textMuted,
+    ...typography.caption,
+    color: colors.textSecondary,
   },
 });

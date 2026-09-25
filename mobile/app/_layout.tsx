@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, useFonts } from '@expo-google-fonts/inter';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -11,18 +12,25 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 export default function RootLayout() {
   const status = useSessionStore((s) => s.status);
   const hydrate = useSessionStore((s) => s.hydrate);
+  const [fontsLoaded, fontError] = useFonts({
+    Inter_400Regular,
+    Inter_500Medium,
+    Inter_600SemiBold,
+  });
 
   useEffect(() => {
     hydrate();
   }, [hydrate]);
 
+  const ready = status !== 'loading' && (fontsLoaded || !!fontError);
+
   useEffect(() => {
-    if (status !== 'loading') {
+    if (ready) {
       SplashScreen.hideAsync().catch(() => {});
     }
-  }, [status]);
+  }, [ready]);
 
-  if (status === 'loading') {
+  if (!ready) {
     return null;
   }
 

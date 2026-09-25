@@ -18,7 +18,7 @@ import { ApiError } from '@/src/api/client';
 import { Avatar } from '@/src/components/Avatar';
 import { FormTextInput } from '@/src/components/FormTextInput';
 import { useSessionStore } from '@/src/store/session';
-import { colors, radius, spacing } from '@/src/theme';
+import { colors, radii, sizes, spacing, typography } from '@/src/theme/tokens';
 
 const schema = z.object({
   firstName: z.string().min(1, 'Requerido'),
@@ -87,7 +87,7 @@ export default function ProfileScreen() {
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
-          <Avatar firstName={user.firstName} lastName={user.lastName} avatarUrl={user.avatarUrl} size={72} />
+          <Avatar firstName={user.firstName} lastName={user.lastName} avatarUrl={user.avatarUrl} size={sizes.avatarProfile} />
           <Text style={styles.email}>{user.email}</Text>
         </View>
 
@@ -179,7 +179,7 @@ export default function ProfileScreen() {
             testID="save-profile-button"
           >
             {isSubmitting ? (
-              <ActivityIndicator color={colors.primaryText} />
+              <ActivityIndicator color={colors.onPrimary} />
             ) : (
               <Text style={styles.buttonText}>Guardar cambios</Text>
             )}
@@ -205,65 +205,63 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
   },
   email: {
-    fontSize: 14,
-    color: colors.textMuted,
+    ...typography.caption,
+    color: colors.textTertiary,
   },
   statusRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
+    borderRadius: radii.control,
     padding: spacing.md,
   },
   statusLabel: {
-    fontSize: 13,
-    color: colors.textMuted,
+    ...typography.caption,
+    color: colors.textTertiary,
   },
   statusValue: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
+    ...typography.bodyMedium,
+    color: colors.textPrimary,
   },
   form: {
     gap: spacing.md,
   },
   feedback: {
-    backgroundColor: '#ECFDF5',
-    borderRadius: radius.sm,
+    backgroundColor: colors.successContainer,
+    borderRadius: radii.control,
     padding: spacing.sm,
   },
   feedbackError: {
-    backgroundColor: colors.dangerBackground,
+    backgroundColor: colors.errorContainer,
   },
   feedbackText: {
-    color: '#047857',
-    fontSize: 14,
+    ...typography.caption,
+    color: colors.onSuccessContainer,
   },
   feedbackTextError: {
-    color: colors.danger,
+    color: colors.onErrorContainer,
   },
   button: {
-    backgroundColor: colors.primary,
-    borderRadius: radius.sm,
-    paddingVertical: spacing.sm + 4,
+    height: sizes.controlHeight,
+    backgroundColor: colors.primaryContainer,
+    borderRadius: radii.control,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   buttonPressed: {
     opacity: 0.85,
   },
   buttonText: {
-    color: colors.primaryText,
-    fontSize: 16,
-    fontWeight: '600',
+    ...typography.bodyMedium,
+    color: colors.onPrimary,
   },
   logoutButton: {
     alignItems: 'center',
     paddingVertical: spacing.sm,
   },
   logoutText: {
-    color: colors.danger,
-    fontSize: 15,
-    fontWeight: '600',
+    ...typography.bodyMedium,
+    color: colors.error,
   },
 });
