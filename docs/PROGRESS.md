@@ -7,7 +7,7 @@
 ## Setup
 - [x] Monorepo creado (`backend/`, `mobile/`, `docs/`)
 - [x] Git inicializado
-- [ ] Modelado de datos definido
+- [x] Modelado de datos definido (`docs/DATA_MODEL.md`)
 - [ ] Backend scaffoldeado (NestJS)
 - [ ] Conexión a MongoDB
 - [ ] Mobile scaffoldeado (React Native)
