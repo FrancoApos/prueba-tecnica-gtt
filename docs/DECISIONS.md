@@ -65,3 +65,37 @@ Registro de decisiones de arquitectura y su justificación (formato ADR simplifi
 **Nota técnica:** `main.ts` y el test e2e comparten la misma configuración de la app (pipes de validación, filtro de errores, CORS, estáticos) a través de `src/setup-app.ts`, para que el test ejercite el comportamiento real y no una versión simplificada.
 
 **Alternativas consideradas:** mockear la capa de persistencia en el e2e — descartado porque perdería el valor de probar contra una base real; requerir Mongo/Docker corriendo para los tests — descartado por fricción para quien evalúa.
+
+---
+
+## 2026-09-25 — Mobile: Expo + Expo Router (no React Native CLI puro)
+
+**Decisión:** La app usa Expo (managed, no bare) con Expo Router para la navegación (file-based routing en `app/`, con `Stack.Protected` para el gate de login/autenticado).
+
+**Por qué:** Expo Router es la opción recomendada oficialmente para proyectos Expo nuevos (reemplaza a armar la navegación a mano con React Navigation). Expo además permite probar en un dispositivo físico con Expo Go sin necesitar Xcode/Android Studio — clave en un entorno Windows sin Mac. `Stack.Protected` da un patrón limpio y oficial para redirigir a login sin sesión sin tener que escribir esa lógica a mano.
+
+**Alternativas consideradas:** React Native CLI (bare) — descartado por la fricción de compilar nativo en Windows sin necesidad; React Navigation configurado a mano — descartado porque Expo Router ya lo resuelve mejor y es el estándar actual.
+
+---
+
+## 2026-09-25 — Mobile: pantalla "Nuevo chat" no pedida explícitamente por la consigna
+
+**Decisión:** Se agregó `app/(app)/new-chat.tsx`, una pantalla modal que busca usuarios (reutilizando `GET /users`) y abre/crea un chat con el seleccionado (`POST /chats`).
+
+**Por qué:** la consigna solo exige login, listado de chats, conversación y perfil — no un flujo de alta de chat. Pero sin alguna forma de iniciar una conversación nueva, la app solo podría mostrar chats preexistentes (creados por seed/Swagger), lo cual hace que el flujo completo no se pueda demostrar ni probar de punta a punta desde la UI. Es la mínima pieza necesaria para que "listado de chats → conversación" sea un flujo real y usable, no scope creep.
+
+---
+
+## 2026-09-25 — Mobile: sin edición de avatar
+
+**Decisión:** La pantalla de perfil no permite cambiar la foto/avatar.
+
+**Por qué:** el backend solo acepta `avatarUrl` como string (una URL), no upload de archivo, en el endpoint de edición de perfil (`PATCH /users/:id`) — a diferencia de los mensajes, que sí soportan adjuntar un archivo real. Pedirle al usuario que pegue una URL de imagen a mano es mala UX y no aporta a lo que se evalúa; se documenta como alcance no cubierto en vez de forzar una solución pobre.
+
+---
+
+## 2026-09-25 — Mobile: bug de interop conocido en los tests de `sign-in`
+
+**Contexto (no una decisión de diseño, sino una nota técnica):** al testear `sign-in.tsx` con dos escenarios de submit async (éxito y error de credenciales) en el mismo archivo de test, aparecían errores de "overlapping act() calls" de React que rompían el segundo test — pero cada test pasa perfecto en aislamiento (`jest -t "..."`). Se investigó: es una incompatibilidad entre esta combinación exacta de versiones (React 19.2.3, Expo SDK 57, `@testing-library/react-native` 14.0.1, `test-renderer` 1.3.0 — todas muy recientes al momento de esta prueba), no un bug del código de la app.
+
+**Solución aplicada:** se separó el test del caso de error a su propio archivo (`__tests__/sign-in-error.test.tsx`), ya que Jest aísla el registro de módulos (y el estado global de React que causaba el problema) por archivo. Evita el bug sin parches fragiles ni deshabilitar cobertura.

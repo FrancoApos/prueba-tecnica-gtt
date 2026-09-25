@@ -2,7 +2,7 @@
 
 Última actualización: 2026-09-25
 
-## Estado general: 🟢 Backend completo — sigue mobile
+## Estado general: 🟢 Backend y mobile funcionales de punta a punta
 
 ## Setup
 - [x] Monorepo creado (`backend/`, `mobile/`, `docs/`)
@@ -10,8 +10,8 @@
 - [x] Modelado de datos definido (`docs/DATA_MODEL.md`)
 - [x] Backend scaffoldeado (NestJS 12, ESM/NodeNext, Vitest, oxlint)
 - [x] Conexión a MongoDB (Mongoose)
-- [ ] Mobile scaffoldeado (React Native)
-- [x] Docker (Dockerfile backend + docker-compose con Mongo)
+- [x] Mobile scaffoldeado (Expo + Expo Router + TypeScript)
+- [x] Docker (Dockerfile backend + docker-compose con Mongo) — no probado con build real (sin Docker en este entorno de desarrollo)
 
 ## Backend
 - [x] Estructura de módulos (auth, users, chats, messages, common, config)
@@ -22,26 +22,30 @@
 - [x] Validaciones (DTOs con class-validator, ValidationPipe global whitelist+forbidNonWhitelisted)
 - [x] Manejo de errores global (`HttpExceptionFilter`, shape consistente)
 - [x] Swagger en `/docs` (con Bearer auth)
-- [x] Tests unitarios (15, vitest, mockeando Mongoose) + e2e (flujo completo con `mongodb-memory-server`, sin depender de Docker/Mongo externo)
+- [x] Tests unitarios (15) + e2e (flujo completo con `mongodb-memory-server`, sin depender de Docker/Mongo externo)
 - [x] Seed de datos de prueba (`npm run seed`) con credenciales documentadas
 
 ## Mobile
-- [ ] Navegación (login, chats, conversación, perfil)
-- [ ] Integración API centralizada
-- [ ] Manejo de estado (sesión, usuario, chats, mensajes)
-- [ ] Formularios con validación
-- [ ] Estados de UX (loading, error, empty, retry, keyboard)
-- [ ] Diseño UI
-- [ ] Al menos 1 test
+- [x] Navegación (login, chats, conversación, perfil) — Expo Router con `Stack.Protected` para el gate de auth
+- [x] Integración API centralizada (`src/api/client.ts`, sin URLs/datos hardcodeados en componentes)
+- [x] Manejo de estado (Zustand para sesión y chats; hook dedicado para mensajes de una conversación)
+- [x] Formularios con validación (react-hook-form + zod) en login y perfil
+- [x] Estados de UX: loading, error con retry, empty, y manejo de teclado (KeyboardAvoidingView)
+- [x] Diseño UI consistente (theme centralizado, componentes reutilizables: Avatar, ChatListItem, MessageBubble, StateView)
+- [x] Adjuntos: imagen (expo-image-picker) y archivo (expo-document-picker) en la conversación
+- [x] Tests (10): store de sesión, utilidades, y formulario de login (éxito/validación/error de credenciales)
+- [x] `expo-doctor` 21/21 y bundle de producción (Metro, Android) verificados sin errores
+- [ ] Probado en dispositivo físico real por el usuario (backend expuesto en LAN, pendiente de confirmación del usuario)
 
 ## Documentación y entrega
 - [x] README del backend (instalación, ejecución, env vars, seed/credenciales, arquitectura, rutas, tests)
+- [x] README de mobile (instalación, ejecución con Expo Go, credenciales, estructura, decisiones, tests)
 - [x] README raíz actualizado (instalación, credenciales, estado)
-- [x] `.env.example` (backend)
+- [x] `.env.example` (backend y mobile)
 - [x] Dockerfile funcional (backend) + docker-compose (backend + Mongo)
-- [x] Scripts de test reproducibles (`npm test`, `npm run test:e2e`)
-- [ ] README de mobile
+- [x] Scripts de test reproducibles (`npm test`, `npm run test:e2e` en backend; `npm run test` en mobile)
 
 ## Notas
 - Usuario conoce SQL/PostgreSQL, no tiene experiencia previa con MongoDB — las explicaciones de modelado usan analogías con el mundo relacional.
 - Docker no está disponible en este entorno de desarrollo — el `Dockerfile`/`docker-compose.yml` no se probaron corriendo un build real, pero el backend sí se validó de punta a punta (Nest build real + Mongo real en memoria + requests HTTP reales via curl y vía el test e2e). Queda como pendiente de verificación manual del build de Docker en una máquina con Docker instalado.
+- El usuario tiene un iPhone 16 Pro y planea probar la app mobile ahí vía Expo Go, con el backend corriendo en esta PC y expuesto en la red local (IP de LAN detectada: `192.168.100.6`). Si el celular no logra conectar, el sospechoso número uno es el Firewall de Windows bloqueando conexiones entrantes al puerto 3000.

@@ -39,7 +39,14 @@ Detalle completo (variables de entorno, seed de datos, tests, rutas) en [`backen
 
 ### Mobile
 
-_Pendiente — se documentará al scaffoldear la app React Native._
+```bash
+cd mobile
+npm install
+cp .env.example .env   # ajustar EXPO_PUBLIC_API_URL — ver comentarios en el archivo
+npx expo start
+```
+
+Escaneá el QR con Expo Go (iOS/Android) o abrí un emulador/simulador. Detalle completo en [`mobile/README.md`](mobile/README.md).
 
 ## Credenciales de prueba
 
@@ -52,4 +59,4 @@ Después de correr `npm run seed` en `backend/` (ver [`backend/README.md`](backe
 
 ## Estado del proyecto
 
-Ver [`docs/PROGRESS.md`](docs/PROGRESS.md) para el detalle. En resumen: **backend completo** (auth, usuarios, chats, mensajes, Swagger, Docker, tests unitarios + e2e) — sigue la app React Native.
+Ver [`docs/PROGRESS.md`](docs/PROGRESS.md) para el detalle. En resumen: **backend y mobile funcionales de punta a punta** — login, listado de chats, conversación (texto + adjuntos) y perfil, contra la API real. Pendiente de verificación en un dispositivo físico por el usuario y de probar el build de Docker (sin Docker disponible en el entorno de desarrollo).
