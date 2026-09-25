@@ -20,16 +20,36 @@ Monorepo para la prueba técnica: aplicación móvil de chat con backend en **Ne
 
 ## Instalación y ejecución
 
-_Pendiente — se completará a medida que se scaffoldeen backend y mobile._
+### Backend
 
-## Variables de entorno
+```bash
+cd backend
+npm install
+cp .env.example .env   # ajustar MONGODB_URI si hace falta
+npm run start:dev
+```
 
-_Pendiente — se agregará `.env.example` cuando exista el backend._
+O con Docker (backend + Mongo juntos, desde la raíz):
+
+```bash
+docker compose up --build
+```
+
+Detalle completo (variables de entorno, seed de datos, tests, rutas) en [`backend/README.md`](backend/README.md).
+
+### Mobile
+
+_Pendiente — se documentará al scaffoldear la app React Native._
 
 ## Credenciales de prueba
 
-_Pendiente._
+Después de correr `npm run seed` en `backend/` (ver [`backend/README.md`](backend/README.md#datos-de-prueba-seed)):
+
+| Email | Password |
+|---|---|
+| `ana@example.com` | `Sup3rSecret!` |
+| `bruno@example.com` | `Sup3rSecret!` |
 
 ## Estado del proyecto
 
-Ver [`docs/PROGRESS.md`](docs/PROGRESS.md) para el detalle. En resumen: **arrancando** — monorepo creado, a punto de definir el modelado de datos.
+Ver [`docs/PROGRESS.md`](docs/PROGRESS.md) para el detalle. En resumen: **backend completo** (auth, usuarios, chats, mensajes, Swagger, Docker, tests unitarios + e2e) — sigue la app React Native.
