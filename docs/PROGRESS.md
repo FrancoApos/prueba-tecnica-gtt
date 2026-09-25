@@ -31,11 +31,13 @@
 - [x] Manejo de estado (Zustand para sesión y chats; hook dedicado para mensajes de una conversación)
 - [x] Formularios con validación (react-hook-form + zod) en login y perfil
 - [x] Estados de UX: loading, error con retry, empty, y manejo de teclado (KeyboardAvoidingView)
-- [x] Diseño UI consistente (theme centralizado, componentes reutilizables: Avatar, ChatListItem, MessageBubble, StateView)
+- [x] Diseño UI repintado desde el design system real de Stitch "Pulse Chat" (`docs/design/`) — tokens en `src/theme/tokens.ts` (colores, tipografía Inter, spacing, radios, tamaños, sombras), cero valores sueltos en componentes
+- [x] Fuente Inter cargada (`@expo-google-fonts/inter` + `useFonts` con gate en `app/_layout.tsx`)
 - [x] Adjuntos: imagen (expo-image-picker) y archivo (expo-document-picker) en la conversación
 - [x] Tests (10): store de sesión, utilidades, y formulario de login (éxito/validación/error de credenciales)
 - [x] `expo-doctor` 21/21 y bundle de producción (Metro, Android) verificados sin errores
 - [ ] Probado en dispositivo físico real por el usuario (backend expuesto en LAN, pendiente de confirmación del usuario)
+- [ ] **Módulo de usuarios (obligatorio, ver `docs/REQUIREMENTS.md`)**: CRUD + listado con filtro/paginado/orden. Backend listo (`GET/POST/PATCH/DELETE /users`); falta la UI mobile. Diseño de referencia en `docs/design/05-users/`. **Pendiente de decidir antes de construirlo:** el mock de Stitch muestra un directorio tipo admin (ver/editar/borrar a *otros* usuarios), pero el backend actual solo permite editar/borrar la *propia* cuenta (self-only, ver `docs/DECISIONS.md`) — hay que resolver esa tensión (¿cambiar el backend a admin-style, o construir la UI mobile como autogestión + listado de solo lectura?) antes de implementar la pantalla.
 
 ## Documentación y entrega
 - [x] README del backend (instalación, ejecución, env vars, seed/credenciales, arquitectura, rutas, tests)
