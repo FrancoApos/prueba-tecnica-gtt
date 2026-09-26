@@ -42,10 +42,11 @@ Te va a mostrar un **QR**:
 
 Corriendo `npm run seed` en `../backend` (ver [`backend/README.md`](../backend/README.md#datos-de-prueba-seed)):
 
-| Email | Password |
-|---|---|
-| `ana@example.com` | `Sup3rSecret!` |
-| `bruno@example.com` | `Sup3rSecret!` |
+| Email | Password | Rol |
+|---|---|---|
+| `ana@example.com` | `Sup3rSecret!` | `user` |
+| `bruno@example.com` | `Sup3rSecret!` | `user` |
+| `admin@example.com` | `Sup3rSecret!` | `admin` — ve los botones de editar/eliminar sobre *otros* usuarios en la tab "Users" |
 
 ## Estructura
 
@@ -56,9 +57,11 @@ app/                         Rutas (Expo Router — cada archivo es una pantalla
 └── (app)/                     Área autenticada
     ├── (tabs)/
     │   ├── index.tsx           Listado de chats
+    │   ├── users.tsx           Directorio de usuarios (buscar/paginar, iniciar chat, editar/eliminar si sos admin)
     │   └── profile.tsx         Perfil (editar datos, estado de conexión, logout)
     ├── chat/[chatId].tsx        Conversación
-    └── new-chat.tsx             Buscar contacto y abrir/crear un chat (modal)
+    ├── new-chat.tsx             Buscar contacto y abrir/crear un chat (modal)
+    └── edit-user.tsx            Editar la cuenta de otro usuario (solo admin — el backend es quien lo exige de verdad)
 
 src/
 ├── api/                      Cliente HTTP centralizado + un módulo por recurso (auth, users, chats, messages)
@@ -74,6 +77,7 @@ src/
 Detalle completo en [`../docs/DECISIONS.md`](../docs/DECISIONS.md).
 
 - **Sin pantalla de registro**: la consigna solo pide login. La creación de usuarios es responsabilidad del backend (`POST /users`, usado por el seed). Para poder iniciar una conversación nueva desde la app (necesario para que el flujo "listado → conversación" sea usable, no solo con chats preexistentes) se agregó una pantalla mínima de "Nuevo chat" que busca usuarios ya dados de alta y abre/crea el chat — no es una funcionalidad pedida explícitamente, pero es indispensable para poder demostrar el flujo completo. Se dispara desde un FAB en el listado de chats (siguiendo el diseño de Stitch).
+- **Módulo de Users (obligatorio, ver `docs/REQUIREMENTS.md`)**: tab "Users" con búsqueda + paginado del directorio. Tocar una fila inicia un chat con esa persona (mismo mecanismo que "Nuevo chat"). Editar/eliminar la cuenta de *otro* usuario solo se muestra si `session.user.role === 'admin'` — la autorización real la exige el backend (`RolesGuard`), esto solo evita ofrecer un botón que el servidor va a rechazar. Detalle en `docs/DECISIONS.md` ("Roles (self-or-admin)...").
 - **No se edita el avatar desde la app**: el backend solo acepta una URL de imagen para `avatarUrl` (no upload de archivo en el perfil), así que no tiene una buena UX en mobile — se dejó fuera del alcance.
 - **Adjuntos**: se pueden enviar imagen (`expo-image-picker`) o archivo (`expo-document-picker`); se envían de una junto con el texto actual del campo, sin paso de "previsualizar antes de enviar" (simplificación consciente).
 - **Diseño**: la UI sigue el design system "Pulse Chat" generado en Stitch (ver `docs/design/`) — colores, tipografía (Inter), spacing y radios viven como tokens en `src/theme/tokens.ts`, sin valores sueltos en los componentes.

@@ -50,14 +50,15 @@ Con Mongo corriendo y `MONGODB_URI` apuntando a él:
 npm run seed
 ```
 
-Esto **borra** las colecciones `users`, `chats` y `messages` de esa base y crea 2 usuarios con un chat y algunos mensajes entre ellos.
+Esto **borra** las colecciones `users`, `chats` y `messages` de esa base y crea 3 usuarios (2 `user` + 1 `admin`) con un chat y algunos mensajes entre los dos primeros.
 
-**Credenciales de prueba** (mismo password para ambas cuentas):
+**Credenciales de prueba** (mismo password para las tres cuentas):
 
-| Email | Password |
-|---|---|
-| `ana@example.com` | `Sup3rSecret!` |
-| `bruno@example.com` | `Sup3rSecret!` |
+| Email | Password | Rol |
+|---|---|---|
+| `ana@example.com` | `Sup3rSecret!` | `user` |
+| `bruno@example.com` | `Sup3rSecret!` | `user` |
+| `admin@example.com` | `Sup3rSecret!` | `admin` |
 
 ## Docker
 
@@ -107,8 +108,8 @@ Cada módulo sigue el mismo patrón: `schema` (Mongoose) → `dto` (class-valida
 | POST | `/users` | No | Alta de cuenta (ver nota abajo) |
 | GET | `/users` | Sí | Listado con filtro de texto, paginado y orden |
 | GET | `/users/:id` | Sí | Detalle de un usuario |
-| PATCH | `/users/:id` | Sí (dueño) | Edita el propio perfil |
-| DELETE | `/users/:id` | Sí (dueño) | Borra la propia cuenta |
+| PATCH | `/users/:id` | Sí (dueño o admin) | Edita un perfil — el propio siempre, el de otro solo con rol `admin` |
+| DELETE | `/users/:id` | Sí (dueño o admin) | Borra una cuenta — la propia siempre, la de otro solo con rol `admin` |
 | POST | `/auth/login` | No | Login, devuelve `accessToken` + usuario |
 | POST | `/chats` | Sí | Abre (o reutiliza) el chat con `participantId` |
 | GET | `/chats` | Sí | Chats del usuario autenticado, con contacto y último mensaje |
@@ -121,7 +122,8 @@ Documentación completa e interactiva en `/docs` (Swagger).
 
 Detalle completo en [`docs/DECISIONS.md`](../docs/DECISIONS.md). Puntos clave:
 
-- **No hay pantalla/endpoint de "registro" separado**: `POST /users` es el alta de cuenta. No hay roles/admin en el alcance — cada usuario solo puede editar/borrar su propia cuenta (`PATCH`/`DELETE /users/:id` verifican que el `id` sea el del usuario autenticado).
+- **No hay pantalla/endpoint de "registro" separado**: `POST /users` es el alta de cuenta.
+- **Roles acotados (self-or-admin), no un login admin separado**: un único flujo de login para todos (la consigna solo pide uno). `PATCH`/`DELETE /users/:id` los resuelve un `RolesGuard` genérico: el dueño del recurso siempre puede actuar sobre el suyo; actuar sobre el de otro requiere rol `admin` (`@Roles('admin')`). El rol nunca se acepta en `POST /users` (nadie se autopromueve) — el único admin de la app nace en el seed. Justificación completa en `docs/DECISIONS.md` ("Roles (self-or-admin), no un login admin separado").
 - **Chats solo 1 a 1** (no grupales) — ver `docs/DECISIONS.md` y `docs/DATA_MODEL.md`.
 - **Adjuntos** se guardan en disco (`uploads/`, servida como estática en `/uploads/*`) — sin S3 ni base64, ver justificación en `docs/DECISIONS.md`.
 
@@ -129,4 +131,4 @@ Detalle completo en [`docs/DECISIONS.md`](../docs/DECISIONS.md). Puntos clave:
 
 - Sin recibos de lectura (doble check) ni edición/borrado de mensajes — no pedidos por la consigna.
 - Los adjuntos persisten en disco del contenedor: con `docker compose` quedan en un volumen; corriendo el contenedor suelto sin volumen, se pierden si se recrea.
-- No hay rate limiting ni roles de administrador — fuera del alcance evaluado.
+- No hay rate limiting ni endpoint para promover/degradar roles — fuera del alcance evaluado.

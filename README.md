@@ -52,10 +52,11 @@ Escaneá el QR con Expo Go (iOS/Android) o abrí un emulador/simulador. Detalle 
 
 Después de correr `npm run seed` en `backend/` (ver [`backend/README.md`](backend/README.md#datos-de-prueba-seed)):
 
-| Email | Password |
-|---|---|
-| `ana@example.com` | `Sup3rSecret!` |
-| `bruno@example.com` | `Sup3rSecret!` |
+| Email | Password | Rol |
+|---|---|---|
+| `ana@example.com` | `Sup3rSecret!` | `user` |
+| `bruno@example.com` | `Sup3rSecret!` | `user` |
+| `admin@example.com` | `Sup3rSecret!` | `admin` |
 
 ## Estado del proyecto
 

@@ -1,6 +1,6 @@
 # Progreso del proyecto
 
-Última actualización: 2026-09-25
+Última actualización: 2026-09-26
 
 ## Estado general: 🟢 Backend y mobile funcionales de punta a punta
 
@@ -16,13 +16,13 @@
 ## Backend
 - [x] Estructura de módulos (auth, users, chats, messages, common, config)
 - [x] Auth (login, JWT, passport-jwt)
-- [x] CRUD usuarios/perfiles (alta pública, resto protegido, self-only edit/delete)
+- [x] CRUD usuarios/perfiles (alta pública, resto protegido, self-or-admin edit/delete vía `RolesGuard` + `@Roles('admin')`)
 - [x] Listado de usuarios (filtro de texto, paginado, orden) y de chats (paginado por participante, más recientes primero)
 - [x] Conversación (mensajes de texto y adjuntos vía multipart, servidos como estáticos)
 - [x] Validaciones (DTOs con class-validator, ValidationPipe global whitelist+forbidNonWhitelisted)
 - [x] Manejo de errores global (`HttpExceptionFilter`, shape consistente)
 - [x] Swagger en `/docs` (con Bearer auth)
-- [x] Tests unitarios (15) + e2e (flujo completo con `mongodb-memory-server`, sin depender de Docker/Mongo externo)
+- [x] Tests unitarios (18) + e2e (flujo completo + control de acceso self-or-admin, con `mongodb-memory-server`, sin depender de Docker/Mongo externo)
 - [x] Seed de datos de prueba (`npm run seed`) con credenciales documentadas
 
 ## Mobile
@@ -36,8 +36,9 @@
 - [x] Adjuntos: imagen (expo-image-picker) y archivo (expo-document-picker) en la conversación
 - [x] Tests (10): store de sesión, utilidades, y formulario de login (éxito/validación/error de credenciales)
 - [x] `expo-doctor` 21/21 y bundle de producción (Metro, Android) verificados sin errores
+- [x] **Módulo de usuarios** (obligatorio, ver `docs/REQUIREMENTS.md`): tab "Users" — directorio con búsqueda + paginado, tap para iniciar chat con cualquiera, editar/eliminar la cuenta de *otro* usuario solo visible si el rol es `admin` (gate real del lado del servidor, ver `docs/DECISIONS.md` "Roles (self-or-admin)")
 - [ ] Probado en dispositivo físico real por el usuario (backend expuesto en LAN, pendiente de confirmación del usuario)
-- [ ] **Módulo de usuarios (obligatorio, ver `docs/REQUIREMENTS.md`)**: CRUD + listado con filtro/paginado/orden. Backend listo (`GET/POST/PATCH/DELETE /users`); falta la UI mobile. Diseño de referencia en `docs/design/05-users/`. **Pendiente de decidir antes de construirlo:** el mock de Stitch muestra un directorio tipo admin (ver/editar/borrar a *otros* usuarios), pero el backend actual solo permite editar/borrar la *propia* cuenta (self-only, ver `docs/DECISIONS.md`) — hay que resolver esa tensión (¿cambiar el backend a admin-style, o construir la UI mobile como autogestión + listado de solo lectura?) antes de implementar la pantalla.
+- [ ] Ordenar el listado de Users (el mock de Stitch tiene un bottom sheet de "Sort by" — no implementado, se usa el orden default del backend)
 
 ## Documentación y entrega
 - [x] README del backend (instalación, ejecución, env vars, seed/credenciales, arquitectura, rutas, tests)
@@ -51,3 +52,4 @@
 - Usuario conoce SQL/PostgreSQL, no tiene experiencia previa con MongoDB — las explicaciones de modelado usan analogías con el mundo relacional.
 - Docker no está disponible en este entorno de desarrollo — el `Dockerfile`/`docker-compose.yml` no se probaron corriendo un build real, pero el backend sí se validó de punta a punta (Nest build real + Mongo real en memoria + requests HTTP reales via curl y vía el test e2e). Queda como pendiente de verificación manual del build de Docker en una máquina con Docker instalado.
 - El usuario tiene un iPhone 16 Pro y planea probar la app mobile ahí vía Expo Go, con el backend corriendo en esta PC y expuesto en la red local (IP de LAN detectada: `192.168.100.6`). Si el celular no logra conectar, el sospechoso número uno es el Firewall de Windows bloqueando conexiones entrantes al puerto 3000.
+- **Trabajo en paralelo (otra sesión de Claude Code, del propio usuario):** mensajería en tiempo real por WebSocket (`backend/src/realtime/`, `mobile/src/realtime/`, más `secure-storage.ts`/`attachment-form.ts` en mobile) — visto en disco pero sin tocar desde esta sesión, a pedido explícito del usuario. Si retomás este proyecto en una sesión futura y ves esos archivos, no son restos raros: es una feature real en curso, confirmada por el usuario el 2026-09-26.

@@ -48,6 +48,8 @@ Registro de decisiones de arquitectura y su justificación (formato ADR simplifi
 
 ## 2026-09-24 — POST /users es el alta de cuenta; sin roles ni admin
 
+> **Superseded en parte el 2026-09-26** — ver la entrada "Roles (self-or-admin)..." más abajo: sí se terminó agregando un rol `admin` acotado, por la tensión con el módulo de Users. Se deja esta entrada porque la parte de "no hay `/auth/register` separado" sigue vigente.
+
 **Decisión:** No existe un endpoint `/auth/register` separado ni pantalla de registro en la app móvil (la consigna solo pide login). `POST /users` cumple ese rol. No hay sistema de roles/admin: `PATCH /users/:id` y `DELETE /users/:id` solo permiten que un usuario modifique/borre **su propia** cuenta (se verifica que el `:id` de la ruta coincida con el `id` del JWT).
 
 **Por qué:** evita duplicar la lógica de alta de cuenta en dos endpoints distintos (`/auth/register` y `/users`), y evita construir un sistema de permisos que la consigna no pide. El caso de uso real de la app (cada persona gestiona su propio perfil) no necesita que un usuario edite a otro.
@@ -115,3 +117,22 @@ Registro de decisiones de arquitectura y su justificación (formato ADR simplifi
 **Hallazgo relevante:** el diseño real de Stitch tiene un tab bar de **3 pestañas** (Chats / Users / Profile) y ~10 pantallas para un módulo de "Users" (directorio con búsqueda/filtro/orden/paginado, alta, edición, borrar con confirmación) — confirma la corrección de alcance del usuario: el módulo de usuarios es obligatorio, no un panel admin opcional. **Tensión sin resolver:** ese mock es de estilo administrativo (ver/editar/borrar a otros usuarios), pero el backend actual solo permite editar/borrar la propia cuenta (`docs/DECISIONS.md`, entrada "POST /users es el alta de cuenta; sin roles ni admin"). Queda pendiente decidir el modelo de permisos antes de construir la pantalla — ver `docs/design/05-users/SPEC.md` y `docs/PROGRESS.md`.
 
 **Botón de "nuevo chat" movido a FAB:** el mock de Stitch usa un FAB circular abajo a la derecha para esto, no un ícono de header (que es como se había implementado antes). Se verificó primero que el flujo estuviera completo y funcional (`new-chat.tsx` → `POST /chats` real → navega a la conversación, no un botón muerto) antes de moverlo, según pidió el usuario.
+
+---
+
+## 2026-09-26 — Roles (self-or-admin), no un login admin separado
+
+**Contexto:** la consigna no menciona admin, roles ni permisos en ningún punto — el único requisito de autenticación es "pantalla de inicio de sesión con correo y contraseña" + "redirección al listado de chats después de un inicio de sesión exitoso" (un solo login). Pero sí exige, sin más detalle, "creación, consulta, actualización y eliminación de usuarios" y "protección de recursos". El mock de Stitch (`docs/design/05-users/`) muestra un directorio estilo admin (ver/editar/borrar a otros), lo que dejaba una tensión real: si cualquier autenticado puede borrar a cualquier otro usuario, es un agujero de seguridad visible en Swagger en dos minutos.
+
+**Decisión:** no se agregó un login/flujo de autenticación separado para administradores — habría contradicho la única línea de la consigna sobre autenticación ("un login, redirige a chats") y es alcance no pedido. En cambio, se resolvió enteramente en el backend, sin tocar pantallas de auth:
+
+- Campo `role: 'user' | 'admin'` en `User` (default `'user'`, **no expuesto en `CreateUserDto`** — el alta pública nunca puede autopromoverse).
+- `RolesGuard` + decorador `@Roles(...)` (`src/common/guards/roles.guard.ts`): implementa una regla genérica "dueño o rol" sobre rutas `/recurso/:id` — si el `:id` coincide con el usuario autenticado, se permite siempre (cada quien gestiona lo suyo); si no coincide, exige que su rol esté en `@Roles(...)`.
+- Aplicado como `@Roles('admin')` en `PATCH /users/:id` y `DELETE /users/:id`: cualquiera edita/borra lo propio: editar o borrar la cuenta de **otro** requiere `admin`.
+- Seed con 3 usuarios: `ana`/`bruno` (`user`) + `admin@example.com` (`admin`, promovido directo sobre el documento en el seed — no hay endpoint para promover a nadie, es la única forma de tener un admin en esta app).
+
+**Por qué esta forma y no otra:** mantiene un único flujo de login (cumple la consigna literal), es ~40 líneas de NestJS bien acotadas, y el criterio "Backend" (25% de la nota) lista explícitamente autenticación/validaciones — un guard de autorización correcto demuestra ese criterio sin inflar el alcance con una pantalla/seed/flujo de admin aparte.
+
+**Mobile:** la pantalla de Users (`app/(app)/(tabs)/users.tsx`, `app/(app)/edit-user.tsx`) se muestra siempre — es el directorio para iniciar chats con cualquiera. Los botones de editar/eliminar en la fila de **otro** usuario se ocultan si `user.role !== 'admin'`; la autorización real sigue siendo del lado del servidor (RolesGuard), esto es solo para no ofrecer una acción que el backend va a rechazar igual.
+
+**Alternativas descartadas:** login/sesión de admin separada (contradice "un login, redirige a chats"); dejar el directorio de solo lectura sin rol alguno (no cumpliría "actualización y eliminación de usuarios" tal como lo interpretó el mock de Stitch, que sí es parte de la consigna).
