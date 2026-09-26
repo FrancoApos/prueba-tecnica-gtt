@@ -41,3 +41,12 @@ export function listUsers(params: ListUsersParams = {}): Promise<PaginatedResult
   const qs = query.toString();
   return apiClient.get<PaginatedResult<User>>(`/users${qs ? `?${qs}` : ''}`);
 }
+
+export function getUser(id: string): Promise<User> {
+  return apiClient.get<User>(`/users/${id}`);
+}
+
+/** Solo el backend decide si esto se permite (dueño, o rol admin) — ver RolesGuard. */
+export function deleteUser(id: string): Promise<void> {
+  return apiClient.delete<void>(`/users/${id}`);
+}

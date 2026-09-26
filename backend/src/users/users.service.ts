@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcryptjs';
 import { Model } from 'mongoose';
@@ -74,9 +74,7 @@ export class UsersService {
     return this.userModel.findOne({ email: email.toLowerCase() }).select('+passwordHash');
   }
 
-  async update(id: string, requesterId: string, dto: UpdateUserDto): Promise<UserResponseDto> {
-    this.assertSelf(id, requesterId);
-
+  async update(id: string, dto: UpdateUserDto): Promise<UserResponseDto> {
     const user = await this.findById(id);
     if (dto.firstName !== undefined) user.firstName = dto.firstName;
     if (dto.lastName !== undefined) user.lastName = dto.lastName;
@@ -92,21 +90,10 @@ export class UsersService {
     return UserResponseDto.fromDocument(user);
   }
 
-  async remove(id: string, requesterId: string): Promise<void> {
-    this.assertSelf(id, requesterId);
+  async remove(id: string): Promise<void> {
     const result = await this.userModel.findByIdAndDelete(id);
     if (!result) {
       throw new NotFoundException('Usuario no encontrado');
-    }
-  }
-
-  /**
-   * No hay roles/admin en el alcance de esta prueba: cada usuario solo
-   * puede editar o borrar su propia cuenta. Ver docs/DECISIONS.md.
-   */
-  private assertSelf(targetId: string, requesterId: string): void {
-    if (targetId !== requesterId) {
-      throw new ForbiddenException('No podés modificar la cuenta de otro usuario');
     }
   }
 }

@@ -25,6 +25,7 @@ const fakeUser = {
   avatarUrl: null,
   status: 'online' as const,
   lastSeenAt: null,
+  role: 'user' as const,
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 };

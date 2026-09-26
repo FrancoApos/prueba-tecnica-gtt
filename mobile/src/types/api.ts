@@ -1,4 +1,5 @@
 export type ConnectionStatus = 'online' | 'offline';
+export type UserRole = 'user' | 'admin';
 
 export interface User {
   id: string;
@@ -10,6 +11,7 @@ export interface User {
   avatarUrl: string | null;
   status: ConnectionStatus;
   lastSeenAt: string | null;
+  role: UserRole;
   createdAt: string;
   updatedAt: string;
 }

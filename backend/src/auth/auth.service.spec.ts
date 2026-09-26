@@ -12,6 +12,7 @@ describe('AuthService', () => {
     passwordHash: await bcrypt.hash(password, 4),
     status: 'offline',
     lastSeenAt: null as Date | null,
+    role: 'user' as const,
     save: vi.fn().mockResolvedValue(undefined),
   });
 

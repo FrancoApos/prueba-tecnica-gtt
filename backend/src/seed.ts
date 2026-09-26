@@ -9,8 +9,13 @@ import { UsersService } from './users/users.service.js';
 
 /**
  * Carga datos de prueba para poder probar el flujo completo sin usar la UI:
- * 2 usuarios, el chat entre ellos y algunos mensajes. Ver credenciales
- * impresas al final y en el README.
+ * 3 usuarios (2 "user" + 1 "admin"), el chat entre los dos primeros y
+ * algunos mensajes. Ver credenciales impresas al final y en el README.
+ *
+ * El rol "admin" no se puede pedir vía `POST /users` (no está en el DTO
+ * público, para que nadie se auto-promueva) — acá se setea directo sobre el
+ * documento después de crearlo, que es la única forma de tener un admin en
+ * esta app (no hay endpoint para promover usuarios, ver docs/DECISIONS.md).
  *
  * Uso: npm run seed (con MONGODB_URI apuntando a una base vacía o de prueba).
  */
@@ -41,6 +46,16 @@ async function seed() {
     birthDate: '1993-07-11',
     phone: '+5491133445566',
   });
+
+  const admin = await usersService.create({
+    email: 'admin@example.com',
+    password: 'Sup3rSecret!',
+    firstName: 'Admin',
+    lastName: 'Pulse',
+    birthDate: '1990-01-01',
+    phone: '+5491100000000',
+  });
+  await userModel.updateOne({ _id: admin.id }, { role: 'admin' });
 
   const participantsKey = [ana.id, bruno.id].sort().join('_');
   const chat = await chatModel.create({
@@ -73,11 +88,13 @@ async function seed() {
   );
 
   // eslint-disable-next-line no-console
-  console.log('Seed OK. Credenciales de prueba (password para ambas: "Sup3rSecret!"):');
+  console.log('Seed OK. Credenciales de prueba (mismo password para las tres: "Sup3rSecret!"):');
   // eslint-disable-next-line no-console
-  console.log('  - ana@example.com');
+  console.log('  - ana@example.com (user)');
   // eslint-disable-next-line no-console
-  console.log('  - bruno@example.com');
+  console.log('  - bruno@example.com (user)');
+  // eslint-disable-next-line no-console
+  console.log('  - admin@example.com (admin)');
 
   await app.close();
 }

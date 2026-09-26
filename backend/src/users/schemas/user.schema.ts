@@ -4,6 +4,7 @@ import { HydratedDocument } from 'mongoose';
 export type UserDocument = HydratedDocument<User>;
 
 export type ConnectionStatus = 'online' | 'offline';
+export type UserRole = 'user' | 'admin';
 
 @Schema({ timestamps: true })
 export class User {
@@ -34,6 +35,14 @@ export class User {
 
   @Prop({ type: Date, default: null })
   lastSeenAt!: Date | null;
+
+  /**
+   * No expuesto en `CreateUserDto` a propósito: el alta pública (`POST /users`)
+   * nunca puede setear el rol — siempre nace `'user'`. El único `admin` de la
+   * app se crea vía seed (`src/seed.ts`), no hay endpoint para promoverlo.
+   */
+  @Prop({ type: String, enum: ['user', 'admin'], default: 'user' })
+  role!: UserRole;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

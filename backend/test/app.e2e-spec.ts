@@ -128,6 +128,30 @@ describe('Chat app (e2e)', () => {
     expect(messages.body.total).toBe(1);
     expect(messages.body.data[0].senderId).toBe(ana.body.id);
 
+    // Control de acceso sobre /users: cualquiera edita lo propio, nadie (sin rol admin) edita ni borra lo ajeno
+    const brunoLogin = await request(server)
+      .post('/auth/login')
+      .send({ email: 'bruno.e2e@example.com', password: 'Sup3rSecret!' })
+      .expect(200);
+    const brunoToken = brunoLogin.body.accessToken as string;
+
+    await request(server)
+      .patch(`/users/${ana.body.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({ phone: '+5491100001111' })
+      .expect(200);
+
+    await request(server)
+      .patch(`/users/${ana.body.id}`)
+      .set('Authorization', `Bearer ${brunoToken}`)
+      .send({ phone: '+5491100002222' })
+      .expect(403);
+
+    await request(server)
+      .delete(`/users/${ana.body.id}`)
+      .set('Authorization', `Bearer ${brunoToken}`)
+      .expect(403);
+
     // Un tercero (Carla) no puede ver mensajes de un chat del que no es parte
     await request(server)
       .post('/users')

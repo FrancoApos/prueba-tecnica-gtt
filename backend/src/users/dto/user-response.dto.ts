@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import type { ConnectionStatus } from '../schemas/user.schema.js';
+import type { ConnectionStatus, UserRole } from '../schemas/user.schema.js';
 import type { UserDocument } from '../schemas/user.schema.js';
 
 export class UserResponseDto {
@@ -12,6 +12,7 @@ export class UserResponseDto {
   @ApiProperty({ nullable: true }) avatarUrl!: string | null;
   @ApiProperty({ enum: ['online', 'offline'] }) status!: ConnectionStatus;
   @ApiProperty({ nullable: true }) lastSeenAt!: Date | null;
+  @ApiProperty({ enum: ['user', 'admin'] }) role!: UserRole;
   @ApiProperty() createdAt!: Date;
   @ApiProperty() updatedAt!: Date;
 
@@ -27,6 +28,7 @@ export class UserResponseDto {
     dto.avatarUrl = doc.avatarUrl;
     dto.status = doc.status;
     dto.lastSeenAt = doc.lastSeenAt;
+    dto.role = doc.role;
     dto.createdAt = (doc as unknown as { createdAt: Date }).createdAt;
     dto.updatedAt = (doc as unknown as { updatedAt: Date }).updatedAt;
     return dto;
