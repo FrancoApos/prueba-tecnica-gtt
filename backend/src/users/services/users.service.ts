@@ -11,6 +11,18 @@ import { User, type UserDocument } from '../schemas/user.schema.js';
 
 const SALT_ROUNDS = 10;
 
+/**
+ * Escapa los metacaracteres de regex antes de armar el `$regex` del filtro de
+ * texto. Sin esto, un `search` con un caracter como `(`, `[` o `\` (cosas que
+ * un usuario real puede tipear — un apellido con paréntesis, etc.) rompe la
+ * query con un regex inválido; con más mala suerte, un patrón armado a
+ * propósito puede causar backtracking catastrófico (ReDoS). Al escapar, el
+ * término de búsqueda siempre se interpreta como texto literal.
+ */
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 @Injectable()
 export class UsersService {
   constructor(@InjectModel(User.name) private readonly userModel: Model<UserDocument>) {}
@@ -36,12 +48,13 @@ export class UsersService {
   }
 
   async findAll(query: QueryUsersDto): Promise<PaginatedResultDto<UserResponseDto>> {
-    const filter = query.search
+    const searchPattern = query.search ? escapeRegExp(query.search) : null;
+    const filter = searchPattern
       ? {
           $or: [
-            { firstName: { $regex: query.search, $options: 'i' } },
-            { lastName: { $regex: query.search, $options: 'i' } },
-            { email: { $regex: query.search, $options: 'i' } },
+            { firstName: { $regex: searchPattern, $options: 'i' } },
+            { lastName: { $regex: searchPattern, $options: 'i' } },
+            { email: { $regex: searchPattern, $options: 'i' } },
           ],
         }
       : {};

@@ -62,4 +62,23 @@ describe('UsersService', () => {
     await expect(usersService.create(validDto)).rejects.toThrow(ConflictException);
     expect(userModel.create).not.toHaveBeenCalled();
   });
+
+  it('escapes regex metacharacters in the search filter (e.g. an unescaped "(" would 500 on an invalid regex)', async () => {
+    const chain = {
+      sort: vi.fn().mockReturnThis(),
+      skip: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      exec: vi.fn().mockResolvedValue([]),
+    };
+    const userModel = {
+      find: vi.fn().mockReturnValue(chain),
+      countDocuments: vi.fn().mockResolvedValue(0),
+    };
+    const usersService = await setup(userModel);
+
+    await usersService.findAll({ search: 'a(b', page: 1, limit: 20, sortBy: 'lastName', sortOrder: 'asc' });
+
+    const filter = userModel.find.mock.calls[0][0] as { $or: Array<{ firstName?: { $regex: string } }> };
+    expect(filter.$or[0].firstName?.$regex).toBe('a\\(b');
+  });
 });
