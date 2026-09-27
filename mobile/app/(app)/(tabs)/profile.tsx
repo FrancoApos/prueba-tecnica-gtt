@@ -3,6 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
 import {
   ActivityIndicator,
+  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -13,12 +14,13 @@ import {
   View,
 } from 'react-native';
 import { z } from 'zod';
-import { updateUser } from '@/src/api/users';
+import { deleteUser, updateUser } from '@/src/api/users';
 import { ApiError } from '@/src/api/client';
 import { Avatar } from '@/src/components/Avatar';
 import { FormTextInput } from '@/src/components/FormTextInput';
 import { useSessionStore } from '@/src/store/session';
 import { colors, radii, sizes, spacing, typography } from '@/src/theme/tokens';
+import { formatRelativeTimestamp } from '@/src/utils/format';
 
 const schema = z.object({
   firstName: z.string().min(1, 'Requerido'),
@@ -38,6 +40,7 @@ export default function ProfileScreen() {
   const logout = useSessionStore((s) => s.logout);
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [togglingStatus, setTogglingStatus] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const {
     control,
@@ -83,6 +86,31 @@ export default function ProfileScreen() {
     }
   };
 
+  const confirmDeleteAccount = () => {
+    Alert.alert(
+      'Eliminar cuenta',
+      'Esta acción no se puede deshacer. ¿Eliminar tu cuenta definitivamente?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        { text: 'Eliminar', style: 'destructive', onPress: () => void handleDeleteAccount() },
+      ],
+    );
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    try {
+      await deleteUser(user.id);
+      await logout();
+    } catch (err) {
+      setFeedback({
+        type: 'error',
+        text: err instanceof ApiError ? err.message : 'No pudimos eliminar tu cuenta',
+      });
+      setDeleting(false);
+    }
+  };
+
   return (
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
@@ -107,6 +135,10 @@ export default function ProfileScreen() {
             />
           )}
         </View>
+
+        <Text style={styles.lastSeen} testID="last-seen">
+          Última conexión: {user.lastSeenAt ? formatRelativeTimestamp(user.lastSeenAt) : 'Nunca'}
+        </Text>
 
         <View style={styles.form}>
           <Controller
@@ -188,6 +220,19 @@ export default function ProfileScreen() {
           <Pressable style={styles.logoutButton} onPress={() => logout()} testID="logout-button">
             <Text style={styles.logoutText}>Cerrar sesión</Text>
           </Pressable>
+
+          <Pressable
+            style={styles.deleteButton}
+            onPress={confirmDeleteAccount}
+            disabled={deleting}
+            testID="delete-account-button"
+          >
+            {deleting ? (
+              <ActivityIndicator color={colors.error} size="small" />
+            ) : (
+              <Text style={styles.deleteText}>Eliminar cuenta</Text>
+            )}
+          </Pressable>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -215,6 +260,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: radii.control,
     padding: spacing.md,
+  },
+  lastSeen: {
+    ...typography.caption,
+    color: colors.textTertiary,
+    textAlign: 'center',
   },
   statusLabel: {
     ...typography.caption,
@@ -262,6 +312,14 @@ const styles = StyleSheet.create({
   },
   logoutText: {
     ...typography.bodyMedium,
+    color: colors.error,
+  },
+  deleteButton: {
+    alignItems: 'center',
+    paddingVertical: spacing.sm,
+  },
+  deleteText: {
+    ...typography.caption,
     color: colors.error,
   },
 });
