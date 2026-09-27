@@ -41,7 +41,7 @@ const fakeUser = {
 describe('useSessionStore', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    useSessionStore.setState({ status: 'loading', token: null, user: null });
+    useSessionStore.setState({ status: 'loading', user: null });
   });
 
   it('starts as signedOut when there is nothing in SecureStore', async () => {
@@ -70,7 +70,7 @@ describe('useSessionStore', () => {
   });
 
   it('clears the session and the stored token on logout', async () => {
-    useSessionStore.setState({ status: 'signedIn', token: 'token-123', user: fakeUser });
+    useSessionStore.setState({ status: 'signedIn', user: fakeUser });
 
     await act(async () => {
       await useSessionStore.getState().logout();

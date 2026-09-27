@@ -11,7 +11,6 @@ const USER_KEY = 'chatapp_user';
 interface SessionState {
   /** "loading" mientras se hidrata el almacenamiento seguro al abrir la app. */
   status: 'loading' | 'signedIn' | 'signedOut';
-  token: string | null;
   user: User | null;
   hydrate: () => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
@@ -21,7 +20,6 @@ interface SessionState {
 
 export const useSessionStore = create<SessionState>((set) => ({
   status: 'loading',
-  token: null,
   user: null,
 
   hydrate: async () => {
@@ -32,7 +30,7 @@ export const useSessionStore = create<SessionState>((set) => ({
     if (token && userJson) {
       setAuthToken(token);
       connectSocket(token);
-      set({ token, user: JSON.parse(userJson) as User, status: 'signedIn' });
+      set({ user: JSON.parse(userJson) as User, status: 'signedIn' });
     } else {
       set({ status: 'signedOut' });
     }
@@ -46,14 +44,14 @@ export const useSessionStore = create<SessionState>((set) => ({
     ]);
     setAuthToken(result.accessToken);
     connectSocket(result.accessToken);
-    set({ token: result.accessToken, user: result.user, status: 'signedIn' });
+    set({ user: result.user, status: 'signedIn' });
   },
 
   logout: async () => {
     await Promise.all([secureStorage.removeItem(TOKEN_KEY), secureStorage.removeItem(USER_KEY)]);
     setAuthToken(null);
     disconnectSocket();
-    set({ token: null, user: null, status: 'signedOut' });
+    set({ user: null, status: 'signedOut' });
   },
 
   updateUser: (user) => {
