@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcryptjs';
 import { Model } from 'mongoose';
 import type { PaginatedResultDto } from '../../common/dto/paginated-result.dto.js';
+import { RealtimeGateway } from '../../realtime/realtime.gateway.js';
 import { CreateUserDto } from '../dto/create-user.dto.js';
 import { QueryUsersDto } from '../dto/query-users.dto.js';
 import { UpdateUserDto } from '../dto/update-user.dto.js';
@@ -25,7 +26,10 @@ function escapeRegExp(value: string): string {
 
 @Injectable()
 export class UsersService {
-  constructor(@InjectModel(User.name) private readonly userModel: Model<UserDocument>) {}
+  constructor(
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    private readonly realtimeGateway: RealtimeGateway,
+  ) {}
 
   async create(dto: CreateUserDto): Promise<UserResponseDto> {
     const existing = await this.userModel.findOne({ email: dto.email.toLowerCase() });
@@ -100,6 +104,14 @@ export class UsersService {
     }
 
     await user.save();
+
+    if (dto.status !== undefined) {
+      // El toggle manual del perfil también tiene que verse en vivo del otro
+      // lado, igual que la presencia automática del socket. Si el emit falla,
+      // el PATCH igual fue exitoso: no se propaga el error.
+      await this.realtimeGateway.emitPresenceChanged(id).catch(() => {});
+    }
+
     return UserResponseDto.fromDocument(user);
   }
 

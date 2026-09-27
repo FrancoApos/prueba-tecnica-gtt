@@ -8,9 +8,13 @@ import {
 } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
 import type { MessageResponseDto } from '../messages/dto/message-response.dto.js';
+import { PresenceService } from './presence.service.js';
 
 /** Evento que el server empuja a los participantes de un chat. */
 export const MESSAGE_CREATED_EVENT = 'message:new';
+
+/** Evento de presencia: alguien de tus contactos entró o salió. */
+export const PRESENCE_CHANGED_EVENT = 'presence:changed';
 
 interface JwtPayload {
   sub: string;
@@ -35,7 +39,18 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   @WebSocketServer()
   private readonly server?: Server;
 
-  constructor(private readonly jwtService: JwtService) {}
+  /**
+   * Sockets vivos por usuario. Hace falta contarlos porque una misma persona
+   * puede tener varias sesiones abiertas (el celular y la web en paralelo):
+   * se marca "online" cuando llega la primera y "offline" recién cuando se va
+   * la última, si no cerrar una pestaña la mostraría desconectada.
+   */
+  private readonly socketsByUser = new Map<string, Set<string>>();
+
+  constructor(
+    private readonly jwtService: JwtService,
+    private readonly presenceService: PresenceService,
+  ) {}
 
   /**
    * Autenticación del socket con el mismo JWT del REST. Se valida en el
@@ -53,14 +68,18 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
       const payload = await this.jwtService.verifyAsync<JwtPayload>(token);
       client.data.userId = payload.sub;
       await client.join(userRoom(payload.sub));
+      await this.trackConnection(payload.sub, client.id);
       this.logger.log(`Socket conectado: ${client.id} (user ${payload.sub})`);
     } catch {
       this.rejectConnection(client, 'Token inválido o expirado');
     }
   }
 
-  handleDisconnect(client: Socket): void {
+  async handleDisconnect(client: Socket): Promise<void> {
     const userId = client.data.userId as string | undefined;
+    if (userId) {
+      await this.trackDisconnection(userId, client.id);
+    }
     this.logger.log(`Socket desconectado: ${client.id}${userId ? ` (user ${userId})` : ''}`);
   }
 
@@ -77,6 +96,65 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     }
     for (const participantId of new Set(participantIds)) {
       this.server.to(userRoom(participantId)).emit(MESSAGE_CREATED_EVENT, message);
+    }
+  }
+
+  /**
+   * Avisa a los contactos del usuario que su presencia cambió. Es público
+   * porque también lo usa el cambio manual de estado desde el perfil
+   * (`UsersService.update`), para que los dos caminos se vean en vivo.
+   */
+  async emitPresenceChanged(userId: string): Promise<void> {
+    if (!this.server) {
+      return;
+    }
+    const presence = await this.presenceService.getPresence(userId);
+    if (!presence) {
+      return;
+    }
+    const contactIds = await this.presenceService.contactIdsOf(userId);
+    for (const contactId of new Set(contactIds)) {
+      this.server.to(userRoom(contactId)).emit(PRESENCE_CHANGED_EVENT, presence);
+    }
+  }
+
+  private async trackConnection(userId: string, socketId: string): Promise<void> {
+    const sockets = this.socketsByUser.get(userId);
+    if (sockets) {
+      // Ya estaba online por otra sesión: nada que persistir ni que avisar.
+      sockets.add(socketId);
+      return;
+    }
+    this.socketsByUser.set(userId, new Set([socketId]));
+    await this.applyPresence(userId, 'online');
+  }
+
+  private async trackDisconnection(userId: string, socketId: string): Promise<void> {
+    const sockets = this.socketsByUser.get(userId);
+    if (!sockets) {
+      return;
+    }
+    sockets.delete(socketId);
+    if (sockets.size > 0) {
+      // Le quedan otras sesiones abiertas: sigue online.
+      return;
+    }
+    this.socketsByUser.delete(userId);
+    await this.applyPresence(userId, 'offline');
+  }
+
+  /**
+   * Un fallo escribiendo la presencia no puede tumbar el handler de
+   * conexión/desconexión: se loguea y el chat sigue funcionando.
+   */
+  private async applyPresence(userId: string, status: 'online' | 'offline'): Promise<void> {
+    try {
+      const presence = await this.presenceService.setStatus(userId, status);
+      if (presence) {
+        await this.emitPresenceChanged(userId);
+      }
+    } catch (error) {
+      this.logger.warn(`No se pudo actualizar la presencia de ${userId}: ${String(error)}`);
     }
   }
 

@@ -2,6 +2,7 @@ import { ConflictException } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import { Test } from '@nestjs/testing';
 import { User } from '../schemas/user.schema.js';
+import { RealtimeGateway } from '../../realtime/realtime.gateway.js';
 import { UsersService } from './users.service.js';
 
 describe('UsersService', () => {
@@ -16,7 +17,11 @@ describe('UsersService', () => {
 
   async function setup(userModel: Record<string, unknown>) {
     const moduleRef = await Test.createTestingModule({
-      providers: [UsersService, { provide: getModelToken(User.name), useValue: userModel }],
+      providers: [
+        UsersService,
+        { provide: getModelToken(User.name), useValue: userModel },
+        { provide: RealtimeGateway, useValue: { emitPresenceChanged: vi.fn().mockResolvedValue(undefined) } },
+      ],
     }).compile();
 
     return moduleRef.get(UsersService);

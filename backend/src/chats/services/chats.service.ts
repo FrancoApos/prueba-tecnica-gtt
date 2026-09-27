@@ -62,6 +62,15 @@ export class ChatsService {
     });
   }
 
+  /**
+   * Ids de los usuarios con los que este usuario tiene un chat. Es el alcance
+   * de su presencia: solo un contacto ve cuando entra o sale.
+   */
+  async listContactIds(userId: string): Promise<string[]> {
+    const chats = await this.chatModel.find({ participants: new Types.ObjectId(userId) }).exec();
+    return chats.map((chat) => this.otherParticipantId(chat, userId));
+  }
+
   async findByIdForUser(chatId: string, userId: string): Promise<ChatDocument> {
     const chat = await this.chatModel.findById(chatId);
     if (!chat) {
