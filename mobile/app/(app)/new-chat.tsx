@@ -18,6 +18,10 @@ export default function NewChatScreen() {
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [openingChatFor, setOpeningChatFor] = useState<string | null>(null);
+  // Se incrementa en cada retry: `search` puede no haber cambiado (el error
+  // no fue por el término de búsqueda), así que hace falta una dependencia
+  // propia para forzar al efecto a reintentar el fetch.
+  const [retryToken, setRetryToken] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,7 +47,7 @@ export default function NewChatScreen() {
       cancelled = true;
       clearTimeout(timeout);
     };
-  }, [search, currentUserId]);
+  }, [search, currentUserId, retryToken]);
 
   const openChatWith = async (user: User) => {
     setOpeningChatFor(user.id);
@@ -84,7 +88,7 @@ export default function NewChatScreen() {
       )}
 
       {status === 'error' && (
-        <ErrorState title="Algo salió mal" description={errorMessage ?? undefined} onRetry={() => setSearch((s) => s)} />
+        <ErrorState title="Algo salió mal" description={errorMessage ?? undefined} onRetry={() => setRetryToken((t) => t + 1)} />
       )}
 
       {status === 'ready' && users.length === 0 && (

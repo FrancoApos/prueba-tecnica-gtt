@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
@@ -17,7 +17,7 @@ import { ApiError } from '@/src/api/client';
 import { getUser, updateUser } from '@/src/api/users';
 import { Avatar } from '@/src/components/Avatar';
 import { FormTextInput } from '@/src/components/FormTextInput';
-import { LoadingState } from '@/src/components/StateView';
+import { ErrorState, LoadingState } from '@/src/components/StateView';
 import { colors, radii, sizes, spacing, typography } from '@/src/theme/tokens';
 import type { User } from '@/src/types/api';
 
@@ -55,7 +55,8 @@ export default function EditUserScreen() {
     defaultValues: { firstName: '', lastName: '', birthDate: '', phone: '' },
   });
 
-  useEffect(() => {
+  const loadUser = useCallback(() => {
+    setLoadError(null);
     getUser(userId)
       .then((fetched) => {
         setUser(fetched);
@@ -71,6 +72,12 @@ export default function EditUserScreen() {
       });
   }, [userId, reset]);
 
+  useEffect(() => {
+    // Patrón estándar de data fetching en un efecto; ver nota en useMessages.ts.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadUser();
+  }, [loadUser]);
+
   const onSubmit = async (values: FormValues) => {
     setServerError(null);
     try {
@@ -85,7 +92,7 @@ export default function EditUserScreen() {
     return (
       <View style={styles.center}>
         <Stack.Screen options={{ title: 'Editar usuario' }} />
-        <Text style={styles.loadError}>{loadError}</Text>
+        <ErrorState title="No pudimos cargar este usuario" description={loadError} onRetry={loadUser} />
       </View>
     );
   }
@@ -202,11 +209,6 @@ const styles = StyleSheet.create({
   email: {
     ...typography.caption,
     color: colors.textTertiary,
-  },
-  loadError: {
-    ...typography.bodyMedium,
-    color: colors.error,
-    textAlign: 'center',
   },
   form: {
     gap: spacing.md,
