@@ -3,7 +3,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useFocusEffect } from 'expo-router';
 import { FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { ChatListItem } from '@/src/components/ChatListItem';
-import { EmptyState, ErrorState, LoadingState } from '@/src/components/StateView';
+import { SkeletonRows } from '@/src/components/Skeleton';
+import { EmptyState, ErrorState } from '@/src/components/StateView';
 import { useChatsStore } from '@/src/store/chats';
 import { colors, radii, shadows, sizes, spacing } from '@/src/theme/tokens';
 
@@ -23,7 +24,9 @@ export default function ChatsListScreen() {
     <View style={styles.container}>
       <Stack.Screen options={{ title: 'Chats' }} />
 
-      {status === 'loading' && chats.length === 0 && <LoadingState label="Cargando chats..." />}
+      {status === 'loading' && chats.length === 0 && (
+        <SkeletonRows avatarSize={sizes.avatarListRow} rowHeight={sizes.chatRowHeight} />
+      )}
 
       {status === 'error' && (
         <ErrorState

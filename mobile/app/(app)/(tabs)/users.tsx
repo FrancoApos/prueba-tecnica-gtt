@@ -5,7 +5,8 @@ import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, TextIn
 import { ApiError } from '@/src/api/client';
 import { deleteUser, listUsers } from '@/src/api/users';
 import { Avatar } from '@/src/components/Avatar';
-import { EmptyState, ErrorState, LoadingState } from '@/src/components/StateView';
+import { SkeletonRows } from '@/src/components/Skeleton';
+import { EmptyState, ErrorState } from '@/src/components/StateView';
 import { useChatsStore } from '@/src/store/chats';
 import { useSessionStore } from '@/src/store/session';
 import { colors, radii, spacing, typography } from '@/src/theme/tokens';
@@ -137,7 +138,7 @@ export default function UsersScreen() {
         </Text>
       )}
 
-      {status === 'loading' && users.length === 0 && <LoadingState label="Cargando usuarios..." />}
+      {status === 'loading' && users.length === 0 && <SkeletonRows avatarSize={44} rowHeight={68} />}
 
       {status === 'error' && (
         <ErrorState title="No pudimos cargar los usuarios" description={errorMessage ?? undefined} onRetry={load} />
