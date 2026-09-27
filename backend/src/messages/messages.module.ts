@@ -6,14 +6,16 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { MulterModule } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { ChatsModule } from '../chats/chats.module.js';
-import { MessagesController } from './messages.controller.js';
-import { MessagesService } from './messages.service.js';
+import { RealtimeModule } from '../realtime/realtime.module.js';
+import { MessagesController } from './controllers/messages.controller.js';
+import { MessagesService } from './services/messages.service.js';
 import { Message, MessageSchema } from './schemas/message.schema.js';
 
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: Message.name, schema: MessageSchema }]),
     ChatsModule,
+    RealtimeModule,
     MulterModule.registerAsync({
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({

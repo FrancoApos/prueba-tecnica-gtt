@@ -1,13 +1,13 @@
 import { Body, Controller, Get, Param, Post, Query, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { CurrentUser, type AuthenticatedUser } from '../common/decorators/current-user.decorator.js';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
-import { PaginatedResultDto } from '../common/dto/paginated-result.dto.js';
-import { CreateMessageDto } from './dto/create-message.dto.js';
-import { MessageResponseDto } from './dto/message-response.dto.js';
-import { QueryMessagesDto } from './dto/query-messages.dto.js';
-import { MessagesService } from './messages.service.js';
+import { CurrentUser, type AuthenticatedUser } from '../../common/decorators/current-user.decorator.js';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
+import { PaginatedResultDto } from '../../common/dto/paginated-result.dto.js';
+import { CreateMessageDto } from '../dto/create-message.dto.js';
+import { MessageResponseDto } from '../dto/message-response.dto.js';
+import { QueryMessagesDto } from '../dto/query-messages.dto.js';
+import { MessagesService } from '../services/messages.service.js';
 
 @ApiTags('messages')
 @ApiBearerAuth()

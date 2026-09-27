@@ -1,12 +1,13 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { ChatsService } from '../chats/chats.service.js';
-import type { PaginatedResultDto } from '../common/dto/paginated-result.dto.js';
-import { CreateMessageDto } from './dto/create-message.dto.js';
-import { MessageResponseDto } from './dto/message-response.dto.js';
-import type { QueryMessagesDto } from './dto/query-messages.dto.js';
-import { Message, type MessageDocument } from './schemas/message.schema.js';
+import { ChatsService } from '../../chats/services/chats.service.js';
+import type { PaginatedResultDto } from '../../common/dto/paginated-result.dto.js';
+import { RealtimeGateway } from '../../realtime/realtime.gateway.js';
+import { CreateMessageDto } from '../dto/create-message.dto.js';
+import { MessageResponseDto } from '../dto/message-response.dto.js';
+import type { QueryMessagesDto } from '../dto/query-messages.dto.js';
+import { Message, type MessageDocument } from '../schemas/message.schema.js';
 
 export interface UploadedAttachment {
   filename: string;
@@ -20,6 +21,7 @@ export class MessagesService {
   constructor(
     @InjectModel(Message.name) private readonly messageModel: Model<MessageDocument>,
     private readonly chatsService: ChatsService,
+    private readonly realtimeGateway: RealtimeGateway,
   ) {}
 
   async create(
@@ -59,7 +61,16 @@ export class MessagesService {
       sentAt,
     });
 
-    return MessageResponseDto.fromDocument(created);
+    const response = MessageResponseDto.fromDocument(created);
+
+    // El mensaje ya está persistido: recién ahora se empuja por WS, así lo que
+    // ve el otro participante en vivo es exactamente lo que devuelve el REST.
+    this.realtimeGateway.emitMessageCreated(
+      chat.participants.map((participant) => participant.toString()),
+      response,
+    );
+
+    return response;
   }
 
   async findByChat(
