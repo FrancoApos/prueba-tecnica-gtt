@@ -16,6 +16,8 @@ type Status = 'loading' | 'ready' | 'error';
 export interface LocalMessage extends Message {
   pending?: boolean;
   failed?: boolean;
+  /** Motivo del fallo, para mostrarlo en la burbuja en vez de un texto genérico. */
+  failedReason?: string;
 }
 
 let tempIdCounter = 0;
@@ -115,8 +117,11 @@ export function useMessages(chatId: string) {
           senderId: message.senderId,
           sentAt: message.sentAt,
         });
-      } catch {
-        setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, pending: false, failed: true } : m)));
+      } catch (err) {
+        const reason = err instanceof ApiError ? err.message : err instanceof Error ? err.message : 'Error desconocido';
+        setMessages((prev) =>
+          prev.map((m) => (m.id === tempId ? { ...m, pending: false, failed: true, failedReason: reason } : m)),
+        );
       }
     },
     [chatId, applyLastMessage, currentUserId],

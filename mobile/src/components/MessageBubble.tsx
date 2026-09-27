@@ -42,7 +42,9 @@ export function MessageBubble({ message, isOwn, onRetry }: MessageBubbleProps) {
         )}
         {message.failed ? (
           <Pressable onPress={() => onRetry?.(message)} hitSlop={8} testID={`message-retry-${message.id}`}>
-            <Text style={styles.failedText}>⚠ No se pudo enviar · Reintentar</Text>
+            <Text style={styles.failedText}>
+              ⚠ {message.failedReason ?? 'No se pudo enviar'} · Reintentar
+            </Text>
           </Pressable>
         ) : (
           <Text style={[styles.timestamp, isOwn ? styles.timestampOwn : styles.timestampOther]}>
