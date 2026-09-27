@@ -2,12 +2,12 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import { InjectModel } from '@nestjs/mongoose';
 import * as bcrypt from 'bcryptjs';
 import { Model } from 'mongoose';
-import type { PaginatedResultDto } from '../common/dto/paginated-result.dto.js';
-import { CreateUserDto } from './dto/create-user.dto.js';
-import { QueryUsersDto } from './dto/query-users.dto.js';
-import { UpdateUserDto } from './dto/update-user.dto.js';
-import { UserResponseDto } from './dto/user-response.dto.js';
-import { User, type UserDocument } from './schemas/user.schema.js';
+import type { PaginatedResultDto } from '../../common/dto/paginated-result.dto.js';
+import { CreateUserDto } from '../dto/create-user.dto.js';
+import { QueryUsersDto } from '../dto/query-users.dto.js';
+import { UpdateUserDto } from '../dto/update-user.dto.js';
+import { UserResponseDto } from '../dto/user-response.dto.js';
+import { User, type UserDocument } from '../schemas/user.schema.js';
 
 const SALT_ROUNDS = 10;
 

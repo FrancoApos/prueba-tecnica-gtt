@@ -1,9 +1,9 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
-import { UserResponseDto } from '../users/dto/user-response.dto.js';
-import { UsersService } from '../users/users.service.js';
-import type { AuthResponseDto } from './dto/auth-response.dto.js';
+import { UserResponseDto } from '../../users/dto/user-response.dto.js';
+import { UsersService } from '../../users/services/users.service.js';
+import type { AuthResponseDto } from '../dto/auth-response.dto.js';
 
 @Injectable()
 export class AuthService {

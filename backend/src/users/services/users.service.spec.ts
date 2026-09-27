@@ -1,7 +1,7 @@
 import { ConflictException } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import { Test } from '@nestjs/testing';
-import { User } from './schemas/user.schema.js';
+import { User } from '../schemas/user.schema.js';
 import { UsersService } from './users.service.js';
 
 describe('UsersService', () => {

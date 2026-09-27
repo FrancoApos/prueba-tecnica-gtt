@@ -1,9 +1,9 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { User, type UserDocument } from '../users/schemas/user.schema.js';
-import { ChatContactDto, ChatResponseDto } from './dto/chat-response.dto.js';
-import { Chat, type ChatDocument } from './schemas/chat.schema.js';
+import { User, type UserDocument } from '../../users/schemas/user.schema.js';
+import { ChatContactDto, ChatResponseDto } from '../dto/chat-response.dto.js';
+import { Chat, type ChatDocument } from '../schemas/chat.schema.js';
 
 @Injectable()
 export class ChatsService {

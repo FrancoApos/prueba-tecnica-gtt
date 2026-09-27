@@ -1,10 +1,10 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { CurrentUser, type AuthenticatedUser } from '../common/decorators/current-user.decorator.js';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
-import { ChatsService } from './chats.service.js';
-import { ChatResponseDto } from './dto/chat-response.dto.js';
-import { CreateChatDto } from './dto/create-chat.dto.js';
+import { CurrentUser, type AuthenticatedUser } from '../../common/decorators/current-user.decorator.js';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
+import { ChatsService } from '../services/chats.service.js';
+import { ChatResponseDto } from '../dto/chat-response.dto.js';
+import { CreateChatDto } from '../dto/create-chat.dto.js';
 
 @ApiTags('chats')
 @ApiBearerAuth()

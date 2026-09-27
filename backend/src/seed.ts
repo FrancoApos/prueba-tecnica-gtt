@@ -5,7 +5,7 @@ import { AppModule } from './app.module.js';
 import { Chat, type ChatDocument } from './chats/schemas/chat.schema.js';
 import { Message, type MessageDocument } from './messages/schemas/message.schema.js';
 import { User, type UserDocument } from './users/schemas/user.schema.js';
-import { UsersService } from './users/users.service.js';
+import { UsersService } from './users/services/users.service.js';
 
 /**
  * Carga datos de prueba para poder probar el flujo completo sin usar la UI:

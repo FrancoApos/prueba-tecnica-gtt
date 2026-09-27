@@ -1,9 +1,9 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import { Test } from '@nestjs/testing';
-import { User } from '../users/schemas/user.schema.js';
+import { User } from '../../users/schemas/user.schema.js';
 import { ChatsService } from './chats.service.js';
-import { Chat } from './schemas/chat.schema.js';
+import { Chat } from '../schemas/chat.schema.js';
 
 describe('ChatsService', () => {
   async function setup(chatModel: Record<string, unknown>, userModel: Record<string, unknown>) {

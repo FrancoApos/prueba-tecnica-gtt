@@ -19,15 +19,15 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { PaginatedResultDto } from '../common/dto/paginated-result.dto.js';
-import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
-import { Roles } from '../common/decorators/roles.decorator.js';
-import { RolesGuard } from '../common/guards/roles.guard.js';
-import { CreateUserDto } from './dto/create-user.dto.js';
-import { QueryUsersDto } from './dto/query-users.dto.js';
-import { UpdateUserDto } from './dto/update-user.dto.js';
-import { UserResponseDto } from './dto/user-response.dto.js';
-import { UsersService } from './users.service.js';
+import { PaginatedResultDto } from '../../common/dto/paginated-result.dto.js';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
+import { Roles } from '../../common/decorators/roles.decorator.js';
+import { RolesGuard } from '../../common/guards/roles.guard.js';
+import { CreateUserDto } from '../dto/create-user.dto.js';
+import { QueryUsersDto } from '../dto/query-users.dto.js';
+import { UpdateUserDto } from '../dto/update-user.dto.js';
+import { UserResponseDto } from '../dto/user-response.dto.js';
+import { UsersService } from '../services/users.service.js';
 
 @ApiTags('users')
 @Controller('users')
