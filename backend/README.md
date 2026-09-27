@@ -4,6 +4,17 @@ API REST en **NestJS + TypeScript + MongoDB (Mongoose)** para la prueba técnica
 
 Ver también: [modelado de datos](../docs/DATA_MODEL.md) y [decisiones técnicas](../docs/DECISIONS.md).
 
+## Stack
+
+- **NestJS + TypeScript**, Mongoose sobre MongoDB
+- **passport-jwt** — autenticación, `RolesGuard` propio (self-or-admin) para autorización
+- **class-validator + class-transformer** — DTOs, `ValidationPipe` global (`whitelist` + `forbidNonWhitelisted`)
+- **bcryptjs** — hash de contraseñas (nunca se persisten ni se devuelven en texto plano)
+- **Swagger (`@nestjs/swagger`)** — documentación interactiva en `/docs`, con ejemplos reales en cada DTO
+- **Multer + diskStorage** — adjuntos (imagen o archivo) servidos como estáticos en `/uploads/*`
+- **Socket.IO (`@nestjs/websockets`)** — push de mensajes nuevos en tiempo real
+- **Vitest + `mongodb-memory-server`** — tests unitarios y e2e reproducibles sin depender de un Mongo externo
+
 ## Requisitos
 
 - Node.js 24+ y npm (o Docker, ver más abajo).
@@ -118,6 +129,14 @@ Cada módulo sigue el mismo patrón: `schema` (Mongoose) → `dto` (class-valida
 | GET | `/chats/:chatId/messages` | Sí | Historial paginado, orden cronológico |
 
 Documentación completa e interactiva en `/docs` (Swagger).
+
+## Autenticación
+
+`POST /auth/login` valida el DTO (`class-validator`) → busca el usuario por email → compara la contraseña con `bcrypt.compare` contra el hash → si coincide, firma un JWT (`sub`, `email`, `role`) y lo devuelve junto con el usuario. El resto de las rutas protegidas exigen `Authorization: Bearer <token>` (`JwtAuthGuard`).
+
+- **401** — sin token, token inválido/expirado, o credenciales incorrectas en el login. El mensaje de credenciales inválidas es el mismo tanto si el email no existe como si la contraseña está mal, para no revelar cuál de los dos falló.
+- **403** — autenticado, pero sin permiso sobre el recurso puntual (`RolesGuard`: actuar sobre el usuario de otro sin ser `admin`).
+- La contraseña nunca se guarda ni se devuelve en texto plano: `passwordHash` tiene `select: false` (no sale en una query normal) y se compara siempre con `bcrypt`.
 
 ## Tiempo real (WebSocket)
 
