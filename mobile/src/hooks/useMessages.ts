@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError } from '@/src/api/client';
 import { listMessages, sendMessage, type OutgoingAttachment } from '@/src/api/messages';
+import { onMessageCreated } from '@/src/realtime/socket';
 import { useChatsStore } from '@/src/store/chats';
 import type { Message } from '@/src/types/api';
 
@@ -38,6 +39,21 @@ export function useMessages(chatId: string) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
+
+  /**
+   * Mensajes empujados por el backend (ver `realtime/socket.ts`). Se filtran
+   * por chat y se deduplican por id porque el server también le reenvía el
+   * mensaje al remitente — sus otras sesiones lo necesitan, y esta ya lo
+   * agregó al responder el POST.
+   */
+  useEffect(
+    () =>
+      onMessageCreated((message) => {
+        if (message.chatId !== chatId) return;
+        setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [...prev, message]));
+      }),
+    [chatId],
+  );
 
   const send = useCallback(
     async (content: string | undefined, attachment?: OutgoingAttachment) => {

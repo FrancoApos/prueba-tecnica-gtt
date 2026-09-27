@@ -1,14 +1,15 @@
-import * as SecureStore from 'expo-secure-store';
 import { create } from 'zustand';
 import { login as loginRequest } from '@/src/api/auth';
 import { setAuthToken } from '@/src/api/token';
+import { connectSocket, disconnectSocket } from '@/src/realtime/socket';
+import { secureStorage } from '@/src/store/secure-storage';
 import type { User } from '@/src/types/api';
 
 const TOKEN_KEY = 'chatapp_token';
 const USER_KEY = 'chatapp_user';
 
 interface SessionState {
-  /** "loading" mientras se hidrata desde SecureStore al abrir la app. */
+  /** "loading" mientras se hidrata el almacenamiento seguro al abrir la app. */
   status: 'loading' | 'signedIn' | 'signedOut';
   token: string | null;
   user: User | null;
@@ -25,11 +26,12 @@ export const useSessionStore = create<SessionState>((set) => ({
 
   hydrate: async () => {
     const [token, userJson] = await Promise.all([
-      SecureStore.getItemAsync(TOKEN_KEY),
-      SecureStore.getItemAsync(USER_KEY),
+      secureStorage.getItem(TOKEN_KEY),
+      secureStorage.getItem(USER_KEY),
     ]);
     if (token && userJson) {
       setAuthToken(token);
+      connectSocket(token);
       set({ token, user: JSON.parse(userJson) as User, status: 'signedIn' });
     } else {
       set({ status: 'signedOut' });
@@ -39,21 +41,23 @@ export const useSessionStore = create<SessionState>((set) => ({
   login: async (email, password) => {
     const result = await loginRequest(email, password);
     await Promise.all([
-      SecureStore.setItemAsync(TOKEN_KEY, result.accessToken),
-      SecureStore.setItemAsync(USER_KEY, JSON.stringify(result.user)),
+      secureStorage.setItem(TOKEN_KEY, result.accessToken),
+      secureStorage.setItem(USER_KEY, JSON.stringify(result.user)),
     ]);
     setAuthToken(result.accessToken);
+    connectSocket(result.accessToken);
     set({ token: result.accessToken, user: result.user, status: 'signedIn' });
   },
 
   logout: async () => {
-    await Promise.all([SecureStore.deleteItemAsync(TOKEN_KEY), SecureStore.deleteItemAsync(USER_KEY)]);
+    await Promise.all([secureStorage.removeItem(TOKEN_KEY), secureStorage.removeItem(USER_KEY)]);
     setAuthToken(null);
+    disconnectSocket();
     set({ token: null, user: null, status: 'signedOut' });
   },
 
   updateUser: (user) => {
-    SecureStore.setItemAsync(USER_KEY, JSON.stringify(user)).catch(() => {});
+    secureStorage.setItem(USER_KEY, JSON.stringify(user)).catch(() => {});
     set({ user });
   },
 }));

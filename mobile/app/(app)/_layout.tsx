@@ -1,6 +1,15 @@
+import { useEffect } from 'react';
 import { Stack } from 'expo-router';
+import { onMessageCreated } from '@/src/realtime/socket';
+import { useChatsStore } from '@/src/store/chats';
 
 export default function AppLayout() {
+  const applyIncomingMessage = useChatsStore((s) => s.applyIncomingMessage);
+
+  // Una sola suscripción para toda la zona autenticada: el preview y el orden
+  // del listado de chats se actualizan aunque el usuario esté en otra pantalla.
+  useEffect(() => onMessageCreated(applyIncomingMessage), [applyIncomingMessage]);
+
   return (
     <Stack screenOptions={{ headerShadowVisible: false }}>
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />

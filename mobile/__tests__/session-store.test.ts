@@ -10,8 +10,16 @@ jest.mock('@/src/api/auth', () => ({
   login: jest.fn(),
 }));
 
+// El store abre/cierra el canal de tiempo real: acá se mockea para que el test
+// siga siendo unitario y no intente una conexión WS real.
+jest.mock('@/src/realtime/socket', () => ({
+  connectSocket: jest.fn(),
+  disconnectSocket: jest.fn(),
+}));
+
 import * as SecureStore from 'expo-secure-store';
 import { login as loginRequest } from '@/src/api/auth';
+import { connectSocket, disconnectSocket } from '@/src/realtime/socket';
 import { useSessionStore } from '@/src/store/session';
 import { getAuthToken } from '@/src/api/token';
 
@@ -58,6 +66,7 @@ describe('useSessionStore', () => {
     expect(state.user?.email).toBe('ana@example.com');
     expect(SecureStore.setItemAsync).toHaveBeenCalledWith('chatapp_token', 'token-123');
     expect(getAuthToken()).toBe('token-123');
+    expect(connectSocket).toHaveBeenCalledWith('token-123');
   });
 
   it('clears the session and the stored token on logout', async () => {
@@ -72,5 +81,6 @@ describe('useSessionStore', () => {
     expect(state.user).toBeNull();
     expect(getAuthToken()).toBeNull();
     expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('chatapp_token');
+    expect(disconnectSocket).toHaveBeenCalled();
   });
 });

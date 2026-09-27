@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { createChat as createChatRequest, listChats as listChatsRequest } from '@/src/api/chats';
 import { ApiError } from '@/src/api/client';
-import type { Chat, LastMessagePreview } from '@/src/types/api';
+import type { Chat, LastMessagePreview, Message } from '@/src/types/api';
 
 interface ChatsState {
   chats: Chat[];
@@ -10,6 +10,7 @@ interface ChatsState {
   fetchChats: () => Promise<void>;
   startChat: (participantId: string) => Promise<Chat>;
   applyLastMessage: (chatId: string, preview: LastMessagePreview) => void;
+  applyIncomingMessage: (message: Message) => void;
 }
 
 export const useChatsStore = create<ChatsState>((set, get) => ({
@@ -37,6 +38,24 @@ export const useChatsStore = create<ChatsState>((set, get) => ({
       set((state) => ({ chats: [chat, ...state.chats] }));
     }
     return chat;
+  },
+
+  /**
+   * Reacciona a un mensaje que llegó por WS. Si el chat todavía no está en la
+   * lista (el otro usuario recién lo creó), se recarga el listado en vez de
+   * inventar un ítem local: los datos del contacto los arma el backend.
+   */
+  applyIncomingMessage: (message) => {
+    const known = get().chats.some((chat) => chat.id === message.chatId);
+    if (!known) {
+      void get().fetchChats();
+      return;
+    }
+    get().applyLastMessage(message.chatId, {
+      content: message.content,
+      senderId: message.senderId,
+      sentAt: message.sentAt,
+    });
   },
 
   applyLastMessage: (chatId, preview) => {
