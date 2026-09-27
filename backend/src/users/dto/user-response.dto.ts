@@ -3,18 +3,18 @@ import type { ConnectionStatus, UserRole } from '../schemas/user.schema.js';
 import type { UserDocument } from '../schemas/user.schema.js';
 
 export class UserResponseDto {
-  @ApiProperty() id!: string;
-  @ApiProperty() email!: string;
-  @ApiProperty() firstName!: string;
-  @ApiProperty() lastName!: string;
-  @ApiProperty() birthDate!: Date;
-  @ApiProperty() phone!: string;
-  @ApiProperty({ nullable: true }) avatarUrl!: string | null;
-  @ApiProperty({ enum: ['online', 'offline'] }) status!: ConnectionStatus;
-  @ApiProperty({ nullable: true }) lastSeenAt!: Date | null;
-  @ApiProperty({ enum: ['user', 'admin'] }) role!: UserRole;
-  @ApiProperty() createdAt!: Date;
-  @ApiProperty() updatedAt!: Date;
+  @ApiProperty({ example: '6ab929cee976f98327c30ae5' }) id!: string;
+  @ApiProperty({ example: 'ana@example.com' }) email!: string;
+  @ApiProperty({ example: 'Ana' }) firstName!: string;
+  @ApiProperty({ example: 'García' }) lastName!: string;
+  @ApiProperty({ example: '1995-03-20T00:00:00.000Z' }) birthDate!: Date;
+  @ApiProperty({ example: '+5491122334455' }) phone!: string;
+  @ApiProperty({ example: null, nullable: true }) avatarUrl!: string | null;
+  @ApiProperty({ enum: ['online', 'offline'], example: 'online' }) status!: ConnectionStatus;
+  @ApiProperty({ example: '2026-09-27T14:38:47.438Z', nullable: true }) lastSeenAt!: Date | null;
+  @ApiProperty({ enum: ['user', 'admin'], example: 'user' }) role!: UserRole;
+  @ApiProperty({ example: '2026-09-27T14:35:58.289Z' }) createdAt!: Date;
+  @ApiProperty({ example: '2026-09-27T14:38:47.440Z' }) updatedAt!: Date;
 
   /** Mapea un documento de Mongoose a la forma pública (nunca expone `passwordHash`). */
   static fromDocument(doc: UserDocument): UserResponseDto {

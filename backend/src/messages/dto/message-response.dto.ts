@@ -2,20 +2,20 @@ import { ApiProperty } from '@nestjs/swagger';
 import type { MessageDocument } from '../schemas/message.schema.js';
 
 export class MessageAttachmentDto {
-  @ApiProperty() url!: string;
-  @ApiProperty() filename!: string;
-  @ApiProperty() mimeType!: string;
-  @ApiProperty() size!: number;
+  @ApiProperty({ example: '/uploads/8c3e1b2a-1f3d-4b7a-9c0e-2a1b3c4d5e6f.png' }) url!: string;
+  @ApiProperty({ example: 'foto.png' }) filename!: string;
+  @ApiProperty({ example: 'image/png' }) mimeType!: string;
+  @ApiProperty({ example: 245678 }) size!: number;
 }
 
 export class MessageResponseDto {
-  @ApiProperty() id!: string;
-  @ApiProperty() chatId!: string;
-  @ApiProperty() senderId!: string;
-  @ApiProperty({ nullable: true }) content!: string | null;
+  @ApiProperty({ example: '6ab929cee976f98327c30b01' }) id!: string;
+  @ApiProperty({ example: '6ab929cee976f98327c30ae8' }) chatId!: string;
+  @ApiProperty({ example: '6ab929cee976f98327c30ae5' }) senderId!: string;
+  @ApiProperty({ example: 'Hola Bruno!', nullable: true }) content!: string | null;
   @ApiProperty({ type: MessageAttachmentDto, nullable: true })
   attachment!: MessageAttachmentDto | null;
-  @ApiProperty() sentAt!: Date;
+  @ApiProperty({ example: '2026-09-27T14:35:58.470Z' }) sentAt!: Date;
 
   static fromDocument(doc: MessageDocument): MessageResponseDto {
     const dto = new MessageResponseDto();

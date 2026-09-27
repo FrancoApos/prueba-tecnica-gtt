@@ -9,7 +9,15 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiCreatedResponse,
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
+import { PaginatedResultDto } from '../common/dto/paginated-result.dto.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { Roles } from '../common/decorators/roles.decorator.js';
 import { RolesGuard } from '../common/guards/roles.guard.js';
@@ -30,6 +38,7 @@ export class UsersController {
     description:
       'No hay una pantalla de registro dedicada en la app móvil (la consigna solo pide login) — este endpoint es el alta de cuenta, usado para crear los usuarios de prueba. Siempre crea la cuenta con rol "user"; no acepta rol en el body.',
   })
+  @ApiCreatedResponse({ description: 'Cuenta creada', type: UserResponseDto })
   create(@Body() dto: CreateUserDto): Promise<UserResponseDto> {
     return this.usersService.create(dto);
   }
@@ -38,13 +47,15 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Lista usuarios con filtro de texto, paginado y orden (directorio, para iniciar chats)' })
-  findAll(@Query() query: QueryUsersDto) {
+  @ApiOkResponse({ description: 'Página de usuarios', type: PaginatedResultDto })
+  findAll(@Query() query: QueryUsersDto): Promise<PaginatedResultDto<UserResponseDto>> {
     return this.usersService.findAll(query);
   }
 
   @Get(':id')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
+  @ApiOkResponse({ description: 'Usuario encontrado', type: UserResponseDto })
   async findOne(@Param('id') id: string): Promise<UserResponseDto> {
     return UserResponseDto.fromDocument(await this.usersService.findById(id));
   }
@@ -57,6 +68,7 @@ export class UsersController {
     summary: 'Edita un perfil (nombre, teléfono, avatar, estado de conexión, etc.)',
     description: 'Cualquiera puede editar el propio perfil. Editar el de otro usuario requiere rol "admin".',
   })
+  @ApiOkResponse({ description: 'Usuario actualizado', type: UserResponseDto })
   update(@Param('id') id: string, @Body() dto: UpdateUserDto): Promise<UserResponseDto> {
     return this.usersService.update(id, dto);
   }
@@ -69,6 +81,7 @@ export class UsersController {
     summary: 'Elimina una cuenta',
     description: 'Cualquiera puede eliminar la propia cuenta. Eliminar la de otro usuario requiere rol "admin".',
   })
+  @ApiNoContentResponse({ description: 'Cuenta eliminada' })
   remove(@Param('id') id: string): Promise<void> {
     return this.usersService.remove(id);
   }

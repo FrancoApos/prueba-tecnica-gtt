@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, type AuthenticatedUser } from '../common/decorators/current-user.decorator.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
 import { ChatsService } from './chats.service.js';
@@ -15,6 +15,7 @@ export class ChatsController {
 
   @Post()
   @ApiOperation({ summary: 'Abre (o reutiliza) el chat 1 a 1 con otro usuario' })
+  @ApiCreatedResponse({ description: 'Chat existente o recién creado', type: ChatResponseDto })
   create(
     @Body() dto: CreateChatDto,
     @CurrentUser() currentUser: AuthenticatedUser,
@@ -24,6 +25,7 @@ export class ChatsController {
 
   @Get()
   @ApiOperation({ summary: 'Lista los chats del usuario autenticado, más recientes primero' })
+  @ApiOkResponse({ description: 'Chats del usuario autenticado', type: ChatResponseDto, isArray: true })
   findAll(@CurrentUser() currentUser: AuthenticatedUser): Promise<ChatResponseDto[]> {
     return this.chatsService.listForUser(currentUser.id);
   }
