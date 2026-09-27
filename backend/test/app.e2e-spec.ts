@@ -95,6 +95,14 @@ describe('Chat app (e2e)', () => {
     // Rutas protegidas sin token -> 401
     await request(server).get('/chats').expect(401);
 
+    // Autenticada, antes de crear nada: el listado arranca vacío (no es un
+    // valor fijo devuelto sin filtrar por participante).
+    const emptyChats = await request(server)
+      .get('/chats')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(emptyChats.body).toEqual([]);
+
     const chat = await request(server)
       .post('/chats')
       .set('Authorization', `Bearer ${token}`)
