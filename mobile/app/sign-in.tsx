@@ -26,6 +26,8 @@ type FormValues = z.infer<typeof schema>;
 
 export default function SignInScreen() {
   const login = useSessionStore((s) => s.login);
+  const sessionExpiredMessage = useSessionStore((s) => s.sessionExpiredMessage);
+  const clearSessionExpiredMessage = useSessionStore((s) => s.clearSessionExpiredMessage);
   const [serverError, setServerError] = useState<string | null>(null);
 
   const {
@@ -39,6 +41,7 @@ export default function SignInScreen() {
 
   const onSubmit = async (values: FormValues) => {
     setServerError(null);
+    clearSessionExpiredMessage();
     try {
       await login(values.email, values.password);
     } catch (err) {
@@ -62,6 +65,12 @@ export default function SignInScreen() {
         </View>
 
         <View style={styles.form}>
+          {sessionExpiredMessage && (
+            <View style={styles.serverError} testID="session-expired-message">
+              <Text style={styles.serverErrorText}>{sessionExpiredMessage}</Text>
+            </View>
+          )}
+
           <Controller
             control={control}
             name="email"

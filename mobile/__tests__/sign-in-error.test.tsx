@@ -24,7 +24,14 @@ describe('SignInScreen — credenciales inválidas', () => {
       }),
     );
     (useSessionStore as unknown as jest.Mock).mockImplementation(
-      (selector: (state: { login: typeof loginMock }) => unknown) => selector({ login: loginMock }),
+      (
+        selector: (state: {
+          login: typeof loginMock;
+          sessionExpiredMessage: string | null;
+          clearSessionExpiredMessage: () => void;
+        }) => unknown,
+      ) =>
+        selector({ login: loginMock, sessionExpiredMessage: null, clearSessionExpiredMessage: jest.fn() }),
     );
 
     await render(<SignInScreen />);

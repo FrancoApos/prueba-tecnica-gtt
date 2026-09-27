@@ -66,7 +66,8 @@ app/                         Rutas (Expo Router — cada archivo es una pantalla
 
 src/
 ├── api/                      Cliente HTTP centralizado + un módulo por recurso (auth, users, chats, messages)
-│   └── attachment-form.ts     Arma el archivo del FormData (variante .web.ts: Blob real en vez del shape de RN)
+│   ├── attachment-form.ts     Arma el archivo del FormData (variante .web.ts: Blob real en vez del shape de RN)
+│   └── auth-events.ts         Notifica un 401 al store de sesión sin crear un ciclo de imports (ver "Sesión vencida" abajo)
 ├── realtime/socket.ts        Cliente de Socket.IO: conecta con el JWT y reparte los `message:new` a quien se suscriba
 ├── store/                    Zustand: session (JWT + usuario) y chats (listado + lastMessage)
 │   └── secure-storage.ts      Persistencia de la sesión (variante .web.ts: localStorage, porque SecureStore no existe en web)
@@ -84,6 +85,7 @@ Detalle completo en [`../docs/DECISIONS.md`](../docs/DECISIONS.md).
 - **Sin pantalla de registro**: la consigna solo pide login. La creación de usuarios es responsabilidad del backend (`POST /users`, usado por el seed). Para poder iniciar una conversación nueva desde la app (necesario para que el flujo "listado → conversación" sea usable, no solo con chats preexistentes) se agregó una pantalla mínima de "Nuevo chat" que busca usuarios ya dados de alta y abre/crea el chat — no es una funcionalidad pedida explícitamente, pero es indispensable para poder demostrar el flujo completo. Se dispara desde un FAB en el listado de chats (siguiendo el diseño de Stitch).
 - **Módulo de Users (obligatorio, ver `docs/REQUIREMENTS.md`)**: tab "Users" con búsqueda + paginado del directorio. Tocar una fila inicia un chat con esa persona (mismo mecanismo que "Nuevo chat"). Editar/eliminar la cuenta de *otro* usuario solo se muestra si `session.user.role === 'admin'` — la autorización real la exige el backend (`RolesGuard`), esto solo evita ofrecer un botón que el servidor va a rechazar. Detalle en `docs/DECISIONS.md` ("Roles (self-or-admin)...").
 - **Tiempo real por WebSocket**: al iniciar sesión (o al hidratar una guardada) el store abre un socket autenticado con el mismo JWT del REST. La conversación agrega los mensajes que llegan (deduplicados por `id`, porque el server también le reenvía el propio mensaje al remitente para sus otras sesiones) y el listado de chats actualiza preview y orden aunque estés en otra pantalla. Enviar sigue siendo el `POST` de siempre: el WS solo recibe.
+- **Sesión vencida → logout + redirect automático**: un JWT vencido/inválido se detecta por dos caminos — un `401` en cualquier request REST autenticado (`api/client.ts`), o el gateway rechazando el socket (`auth:error`, ver `realtime/socket.ts`) — y ambos confluyen en el mismo handler (`api/auth-events.ts`, para no crear un ciclo de imports entre el cliente HTTP y el store de Zustand). Ese handler limpia la sesión y `Stack.Protected` hace el resto: no hay navegación manual, el simple cambio de `status` a `signedOut` alcanza. La pantalla de login muestra "Tu sesión expiró..." solo en este caso, nunca en un logout manual.
 - **No se edita el avatar desde la app**: el backend solo acepta una URL de imagen para `avatarUrl` (no upload de archivo en el perfil), así que no tiene una buena UX en mobile — se dejó fuera del alcance.
 - **Adjuntos**: se pueden enviar imagen (`expo-image-picker`) o archivo (`expo-document-picker`); se envían de una junto con el texto actual del campo, sin paso de "previsualizar antes de enviar" (simplificación consciente).
 - **Diseño**: la UI sigue el design system "Pulse Chat" generado en Stitch (ver `docs/design/`) — colores, tipografía (Inter), spacing y radios viven como tokens en `src/theme/tokens.ts`, sin valores sueltos en los componentes.
@@ -97,9 +99,9 @@ npm run typecheck    # tsc --noEmit
 npm run lint          # expo lint
 ```
 
-**Unit/component tests** (15, `__tests__/`):
+**Unit/component tests** (17, `__tests__/`):
 - Utilidades de formateo (`getInitials`, `formatRelativeTimestamp`, `formatDayLabel`)
-- Store de sesión — login/logout/hidratación desde el almacén seguro, y que abra/cierre el canal de tiempo real
+- Store de sesión — login/logout/hidratación desde el almacén seguro, que abra/cierre el canal de tiempo real, y que un 401 (no un logout manual) muestre el mensaje de sesión vencida
 - `useMessages` — el envío optimista: el mensaje aparece de inmediato (`pending`) y se confirma con la respuesta del server, o se marca `failed` (sin revertirse) si la request rechaza
 - Formulario de login — validaciones, submit exitoso, error de credenciales inválidas (separado en dos archivos, ver nota abajo)
 

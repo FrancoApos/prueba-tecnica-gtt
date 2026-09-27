@@ -1,4 +1,4 @@
-import { act } from '@testing-library/react-native';
+import { act, waitFor } from '@testing-library/react-native';
 
 jest.mock('expo-secure-store', () => ({
   getItemAsync: jest.fn(),
@@ -19,6 +19,7 @@ jest.mock('@/src/realtime/socket', () => ({
 
 import * as SecureStore from 'expo-secure-store';
 import { login as loginRequest } from '@/src/api/auth';
+import { notifyUnauthorized } from '@/src/api/auth-events';
 import { connectSocket, disconnectSocket } from '@/src/realtime/socket';
 import { useSessionStore } from '@/src/store/session';
 import { getAuthToken } from '@/src/api/token';
@@ -41,7 +42,7 @@ const fakeUser = {
 describe('useSessionStore', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    useSessionStore.setState({ status: 'loading', user: null });
+    useSessionStore.setState({ status: 'loading', user: null, sessionExpiredMessage: null });
   });
 
   it('starts as signedOut when there is nothing in SecureStore', async () => {
@@ -82,5 +83,32 @@ describe('useSessionStore', () => {
     expect(getAuthToken()).toBeNull();
     expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith('chatapp_token');
     expect(disconnectSocket).toHaveBeenCalled();
+  });
+
+  it('logs out and shows a session-expired message when the API reports a 401', async () => {
+    useSessionStore.setState({ status: 'signedIn', user: fakeUser, sessionExpiredMessage: null });
+
+    await act(() => {
+      notifyUnauthorized();
+    });
+
+    // Se setea de inmediato, no depende de que el logout (async) ya haya terminado.
+    expect(useSessionStore.getState().sessionExpiredMessage).toBe(
+      'Tu sesión expiró. Iniciá sesión de nuevo.',
+    );
+
+    await waitFor(() => expect(useSessionStore.getState().status).toBe('signedOut'));
+    expect(useSessionStore.getState().user).toBeNull();
+    expect(disconnectSocket).toHaveBeenCalled();
+  });
+
+  it('never shows the session-expired message after a manual logout', async () => {
+    useSessionStore.setState({ status: 'signedIn', user: fakeUser, sessionExpiredMessage: null });
+
+    await act(async () => {
+      await useSessionStore.getState().logout();
+    });
+
+    expect(useSessionStore.getState().sessionExpiredMessage).toBeNull();
   });
 });

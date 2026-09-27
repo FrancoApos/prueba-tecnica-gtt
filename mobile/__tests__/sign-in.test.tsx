@@ -8,11 +8,24 @@ jest.mock('@/src/store/session', () => ({
 
 describe('SignInScreen', () => {
   const loginMock = jest.fn();
+  const clearSessionExpiredMessageMock = jest.fn();
 
   beforeEach(() => {
     loginMock.mockReset();
+    clearSessionExpiredMessageMock.mockReset();
     (useSessionStore as unknown as jest.Mock).mockImplementation(
-      (selector: (state: { login: typeof loginMock }) => unknown) => selector({ login: loginMock }),
+      (
+        selector: (state: {
+          login: typeof loginMock;
+          sessionExpiredMessage: string | null;
+          clearSessionExpiredMessage: typeof clearSessionExpiredMessageMock;
+        }) => unknown,
+      ) =>
+        selector({
+          login: loginMock,
+          sessionExpiredMessage: null,
+          clearSessionExpiredMessage: clearSessionExpiredMessageMock,
+        }),
     );
   });
 

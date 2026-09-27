@@ -1,9 +1,12 @@
 import { io, type Socket } from 'socket.io-client';
+import { notifyUnauthorized } from '@/src/api/auth-events';
 import { API_URL } from '@/src/config';
 import type { Message } from '@/src/types/api';
 
 /** Mismo nombre de evento que emite el gateway del backend. */
 const MESSAGE_CREATED_EVENT = 'message:new';
+/** El gateway lo emite y desconecta cuando falta el token o está vencido/inválido. */
+const AUTH_ERROR_EVENT = 'auth:error';
 
 type MessageListener = (message: Message) => void;
 
@@ -32,6 +35,12 @@ export function connectSocket(token: string): void {
     for (const listener of listeners) {
       listener(message);
     }
+  });
+
+  // Mismo JWT que el REST: si el gateway lo rechaza, la sesión ya no sirve
+  // aunque en ese momento no haya ninguna request HTTP en curso que lo note.
+  instance.on(AUTH_ERROR_EVENT, () => {
+    notifyUnauthorized();
   });
 
   socket = instance;

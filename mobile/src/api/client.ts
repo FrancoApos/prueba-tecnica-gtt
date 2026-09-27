@@ -1,5 +1,6 @@
 import { API_URL } from '@/src/config';
 import type { ApiErrorBody } from '@/src/types/api';
+import { notifyUnauthorized } from './auth-events';
 import { getAuthToken } from './token';
 
 export class ApiError extends Error {
@@ -59,6 +60,13 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const json = await response.json().catch(() => null);
 
   if (!response.ok) {
+    // Un 401 en una request que sí mandó token significa que el JWT venció o
+    // es inválido — no tiene sentido reintentar ni quedarse mostrando un
+    // error en la pantalla actual: hay que cerrar la sesión y volver al
+    // login (ver `store/session.ts`, que registra el handler real).
+    if (response.status === 401 && auth) {
+      notifyUnauthorized();
+    }
     throw new ApiError(
       json ?? {
         statusCode: response.status,
