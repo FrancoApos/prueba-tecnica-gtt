@@ -2,20 +2,26 @@ import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native'
 import { resolveAssetUrl } from '@/src/config';
 import { colors, radii, spacing, typography } from '@/src/theme/tokens';
 import { formatRelativeTimestamp } from '@/src/utils/format';
-import type { Message } from '@/src/types/api';
+import type { LocalMessage } from '@/src/hooks/useMessages';
 
 interface MessageBubbleProps {
-  message: Message;
+  message: LocalMessage;
   isOwn: boolean;
+  /** Solo se llama para un mensaje `failed` — reintenta el mismo envío. */
+  onRetry?: (message: LocalMessage) => void;
 }
 
-export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
+export function MessageBubble({ message, isOwn, onRetry }: MessageBubbleProps) {
   const isImage = message.attachment?.mimeType.startsWith('image/');
 
   return (
     <View style={[styles.row, isOwn ? styles.rowOwn : styles.rowOther]}>
       <View
-        style={[styles.bubble, isOwn ? styles.bubbleOwn : styles.bubbleOther]}
+        style={[
+          styles.bubble,
+          isOwn ? styles.bubbleOwn : styles.bubbleOther,
+          message.pending && styles.bubblePending,
+        ]}
         testID={`message-bubble-${message.id}`}
       >
         {message.attachment && isImage && (
@@ -34,9 +40,15 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
         {message.content && (
           <Text style={isOwn ? styles.textOwn : styles.textOther}>{message.content}</Text>
         )}
-        <Text style={[styles.timestamp, isOwn ? styles.timestampOwn : styles.timestampOther]}>
-          {formatRelativeTimestamp(message.sentAt)}
-        </Text>
+        {message.failed ? (
+          <Pressable onPress={() => onRetry?.(message)} hitSlop={8} testID={`message-retry-${message.id}`}>
+            <Text style={styles.failedText}>⚠ No se pudo enviar · Reintentar</Text>
+          </Pressable>
+        ) : (
+          <Text style={[styles.timestamp, isOwn ? styles.timestampOwn : styles.timestampOther]}>
+            {message.pending ? 'Enviando…' : formatRelativeTimestamp(message.sentAt)}
+          </Text>
+        )}
       </View>
     </View>
   );
@@ -69,6 +81,9 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: radii.bubbleTail,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
+  },
+  bubblePending: {
+    opacity: 0.6,
   },
   textOwn: {
     ...typography.bodyDefault,
@@ -103,5 +118,10 @@ const styles = StyleSheet.create({
   },
   timestampOther: {
     color: colors.textTertiary,
+  },
+  failedText: {
+    ...typography.timestamp,
+    color: colors.error,
+    alignSelf: 'flex-end',
   },
 });

@@ -6,9 +6,15 @@
  */
 export const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
-/** Los adjuntos vienen del backend como path relativo (`/uploads/x.png`). */
+/**
+ * Los adjuntos persistidos vienen del backend como path relativo
+ * (`/uploads/x.png`). Un adjunto optimista (todavía no confirmado por el
+ * server, ver `useMessages.ts`) usa en cambio la URI local del picker
+ * (`file://`, `content://`, `ph://`, `blob:` en web) — cualquier URI que ya
+ * tenga esquema propio se devuelve tal cual, no es un path para prefijar.
+ */
 export function resolveAssetUrl(path: string): string {
-  if (/^https?:\/\//.test(path)) {
+  if (/^[a-z][a-z0-9+.-]*:/i.test(path)) {
     return path;
   }
   return `${API_URL}${path}`;

@@ -4,7 +4,6 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import {
-  ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -17,17 +16,16 @@ import {
 import { Avatar } from '@/src/components/Avatar';
 import { EmptyState, ErrorState, LoadingState } from '@/src/components/StateView';
 import { MessageBubble } from '@/src/components/MessageBubble';
-import { useMessages } from '@/src/hooks/useMessages';
+import { useMessages, type LocalMessage } from '@/src/hooks/useMessages';
 import type { OutgoingAttachment } from '@/src/api/messages';
 import { useSessionStore } from '@/src/store/session';
 import { showAlert, showChoice } from '@/src/utils/alert';
 import { formatDayLabel } from '@/src/utils/format';
 import { colors, radii, sizes, spacing, typography } from '@/src/theme/tokens';
-import type { Message } from '@/src/types/api';
 
 type ConversationListItem =
   | { type: 'separator'; key: string; label: string }
-  | { type: 'message'; key: string; message: Message };
+  | { type: 'message'; key: string; message: LocalMessage };
 
 /** Dia calendario (no franja de 24hs) para agrupar los separadores por fecha real. */
 function dayKeyOf(isoDate: string): string {
@@ -42,7 +40,7 @@ export default function ConversationScreen() {
     contactAvatar?: string;
   }>();
   const currentUserId = useSessionStore((s) => s.user?.id);
-  const { messages, status, errorMessage, sending, reload, send } = useMessages(chatId);
+  const { messages, status, errorMessage, reload, send, retry } = useMessages(chatId);
   const [text, setText] = useState('');
   const listRef = useRef<FlatList<ConversationListItem>>(null);
 
@@ -60,16 +58,14 @@ export default function ConversationScreen() {
     return items;
   }, [messages]);
 
-  const submitText = async () => {
+  const submitText = () => {
     const content = text.trim();
     if (!content) return;
     setText('');
-    try {
-      await send(content);
-    } catch {
-      showAlert('No se pudo enviar', 'Revisá tu conexión e intentá de nuevo.');
-      setText(content);
-    }
+    // No hace falta esperar ni manejar el error acá: `send` es optimista (la
+    // burbuja aparece al instante) y si falla se marca `failed` en la propia
+    // burbuja, con reintento — ver MessageBubble.
+    void send(content);
   };
 
   const pickAndSendAttachment = () => {
@@ -88,7 +84,7 @@ export default function ConversationScreen() {
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 });
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
-    await sendAttachment({
+    sendAttachment({
       uri: asset.uri,
       name: asset.fileName ?? 'imagen.jpg',
       mimeType: asset.mimeType ?? 'image/jpeg',
@@ -99,21 +95,17 @@ export default function ConversationScreen() {
     const result = await DocumentPicker.getDocumentAsync({});
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
-    await sendAttachment({
+    sendAttachment({
       uri: asset.uri,
       name: asset.name,
       mimeType: asset.mimeType ?? 'application/octet-stream',
     });
   };
 
-  const sendAttachment = async (attachment: OutgoingAttachment) => {
+  const sendAttachment = (attachment: OutgoingAttachment) => {
     const content = text.trim() || undefined;
     setText('');
-    try {
-      await send(content, attachment);
-    } catch {
-      showAlert('No se pudo enviar el adjunto', 'Revisá tu conexión e intentá de nuevo.');
-    }
+    void send(content, attachment);
   };
 
   return (
@@ -161,7 +153,11 @@ export default function ConversationScreen() {
                 <Text style={styles.daySeparatorText}>{item.label}</Text>
               </View>
             ) : (
-              <MessageBubble message={item.message} isOwn={item.message.senderId === currentUserId} />
+              <MessageBubble
+                message={item.message}
+                isOwn={item.message.senderId === currentUserId}
+                onRetry={retry}
+              />
             )
           }
           contentContainerStyle={styles.listContent}
@@ -184,15 +180,11 @@ export default function ConversationScreen() {
         />
         <Pressable
           onPress={submitText}
-          disabled={sending || !text.trim()}
-          style={[styles.sendButton, (!text.trim() || sending) && styles.sendButtonDisabled]}
+          disabled={!text.trim()}
+          style={[styles.sendButton, !text.trim() && styles.sendButtonDisabled]}
           testID="send-button"
         >
-          {sending ? (
-            <ActivityIndicator color={colors.onPrimary} size="small" />
-          ) : (
-            <Ionicons name="send" size={18} color={colors.onPrimary} />
-          )}
+          <Ionicons name="send" size={18} color={colors.onPrimary} />
         </Pressable>
       </View>
     </KeyboardAvoidingView>
