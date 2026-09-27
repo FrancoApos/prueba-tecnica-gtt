@@ -16,7 +16,20 @@ export function setupApp(app: NestExpressApplication): void {
 
   const uploadsDir = configService.get<string>('uploadsDir') ?? 'uploads';
   mkdirSync(uploadsDir, { recursive: true });
-  app.useStaticAssets(join(process.cwd(), uploadsDir), { prefix: '/uploads/' });
+  app.useStaticAssets(join(process.cwd(), uploadsDir), {
+    prefix: '/uploads/',
+    // Los adjuntos no tienen restricción de tipo (la consigna solo pide poder
+    // subir imagen o archivo): sin esto, un .html/.svg subido como adjunto se
+    // serviría con su Content-Type real y, abierto directo en un browser, un
+    // <script> embebido correría en el origen de la API (XSS almacenado). Con
+    // `attachment` el browser siempre lo descarga en vez de renderizarlo —
+    // no afecta a las imágenes, que la app carga como <Image>/subrecurso, no
+    // como navegación de página (ahí el navegador ignora Content-Disposition).
+    setHeaders: (res) => {
+      res.setHeader('Content-Disposition', 'attachment');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+    },
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({

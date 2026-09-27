@@ -44,6 +44,8 @@ Registro de decisiones de arquitectura y su justificación (formato ADR simplifi
 
 **Limitación conocida:** al ser disco local del contenedor, los archivos no persisten si el contenedor se recrea sin volumen — se documentará explícitamente en el README como alcance conocido.
 
+**Seguridad (agregado 2026-09-27):** la app no restringe el tipo de archivo adjunto (la consigna solo pide poder subir imagen o archivo). Sin ninguna medida, un adjunto `.html`/`.svg` con un `<script>` embebido se serviría con su `Content-Type` real desde `/uploads/*` — abierto directo en un browser, ese script correría en el origen de la API (XSS almacenado). Verificado en vivo: subir un `.html` con `<script>alert(...)</script>` y pedirlo devolvía el HTML completo, listo para ejecutarse. Se corrigió sirviendo todo `/uploads/*` con `Content-Disposition: attachment` + `X-Content-Type-Options: nosniff` (`setup-app.ts`): el browser siempre lo descarga en vez de renderizarlo. No afecta a las imágenes que la app carga como `<Image>` (subrecurso, no navegación de página — ahí el navegador ignora `Content-Disposition`), verificado también en vivo tras el fix.
+
 ---
 
 ## 2026-09-24 — POST /users es el alta de cuenta; sin roles ni admin
