@@ -111,7 +111,16 @@ export default function UsersScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: 'Users' }} />
+      <Stack.Screen
+        options={{
+          title: 'Users',
+          headerRight: () => (
+            <Pressable onPress={() => router.push('/(app)/new-user')} hitSlop={12} testID="new-user-button">
+              <Ionicons name="person-add-outline" size={22} color={colors.primary} />
+            </Pressable>
+          ),
+        }}
+      />
 
       <TextInput
         style={styles.search}
@@ -122,14 +131,24 @@ export default function UsersScreen() {
         testID="users-search-input"
       />
 
+      {status === 'ready' && total > 0 && (
+        <Text style={styles.count} testID="users-count">
+          {total} {total === 1 ? 'usuario' : 'usuarios'}
+        </Text>
+      )}
+
       {status === 'loading' && users.length === 0 && <LoadingState label="Cargando usuarios..." />}
 
       {status === 'error' && (
         <ErrorState title="No pudimos cargar los usuarios" description={errorMessage ?? undefined} onRetry={load} />
       )}
 
-      {status === 'ready' && users.length === 0 && (
-        <EmptyState title="No encontramos usuarios" description="Probá con otro nombre o email" />
+      {status === 'ready' && users.length === 0 && search.trim() && (
+        <EmptyState title={`Sin resultados para "${search.trim()}"`} description="Probá con otro nombre o email" />
+      )}
+
+      {status === 'ready' && users.length === 0 && !search.trim() && (
+        <EmptyState title="Todavía no hay usuarios" description="Tocá el ícono de arriba para crear el primero" />
       )}
 
       {users.length > 0 && (
@@ -211,6 +230,12 @@ const styles = StyleSheet.create({
     ...typography.bodyDefault,
     backgroundColor: colors.surfaceContainerLow,
     color: colors.textPrimary,
+  },
+  count: {
+    ...typography.caption,
+    color: colors.textTertiary,
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.xs,
   },
   row: {
     flexDirection: 'row',
