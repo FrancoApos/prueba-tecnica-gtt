@@ -97,6 +97,10 @@ npm run typecheck    # tsc --noEmit
 npm run lint          # expo lint
 ```
 
-Cubren: el store de sesión (login/logout/hidratación desde el almacén seguro, y que abra/cierre el canal de tiempo real), utilidades puras de formateo, y el formulario de login (validaciones, submit exitoso, error de credenciales inválidas).
+**Unit/component tests** (15, `__tests__/`):
+- Utilidades de formateo (`getInitials`, `formatRelativeTimestamp`, `formatDayLabel`)
+- Store de sesión — login/logout/hidratación desde el almacén seguro, y que abra/cierre el canal de tiempo real
+- `useMessages` — el envío optimista: el mensaje aparece de inmediato (`pending`) y se confirma con la respuesta del server, o se marca `failed` (sin revertirse) si la request rechaza
+- Formulario de login — validaciones, submit exitoso, error de credenciales inválidas (separado en dos archivos, ver nota abajo)
 
 > Nota: vas a ver algunos `console.error` de "overlapping act() calls" al correr los tests de `sign-in`. Es ruido de una incompatibilidad conocida entre esta combinación específica de versiones (React 19.2/Expo SDK 57/RNTL 14, todas muy recientes) — los tests pasan igual; se investigó y se aisló cada escenario en su propio archivo para evitar que ese bug de interop hiciera fallar un test que en aislamiento pasa perfecto.

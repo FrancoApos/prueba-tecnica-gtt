@@ -88,12 +88,25 @@ docker compose up --build
 
 ```bash
 npm run test        # unitarios (vitest)
-npm run test:e2e    # flujo completo end-to-end (auth + users + chats + messages)
+npm run test:e2e    # flujo completo end-to-end
 npm run test:cov    # con cobertura
 npm run lint         # oxlint
 ```
 
-Ambas suites son **reproducibles sin depender de un Mongo externo ni de Docker**: usan [`mongodb-memory-server`](https://github.com/typegoose/mongodb-memory-server) para levantar un Mongo real (no un mock) en memoria durante la corrida. El test e2e (`test/app.e2e-spec.ts`) recorre el flujo completo — alta de usuarios, login, credenciales inválidas, creación idempotente de chat, envío de mensaje, listado con `lastMessage`, y control de acceso (403 para quien no es parte del chat) — contra la app real, con los mismos pipes/filtros que producción (ver `src/setup-app.ts`).
+**Por qué `mongodb-memory-server`** (ambas suites lo usan): levanta un Mongo real — no un mock — en memoria durante la corrida, así que son **reproducibles en cualquier máquina o CI** sin depender de un Mongo externo corriendo ni de Docker. Un mock de Mongoose no hubiese detectado, por ejemplo, que un índice único falta o que una query con `$regex` mal armada rompe contra el motor real.
+
+**Unit tests** (20, `vitest run`):
+- `AuthService` — login exitoso, password incorrecta, email inexistente (mismo mensaje genérico, no revela cuál falló)
+- `UsersService` — hash de password, que `role` nunca se cuela en el alta, email duplicado, escape de metacaracteres regex en el filtro de búsqueda
+- `ChatsService` — no chatear con uno mismo, contacto inexistente, creación idempotente (no duplica), acceso denegado a quien no participa
+- `MessagesService` — mensaje sin texto ni adjunto rechazado, adjunto solo, contenido solo espacios, push por WebSocket a los participantes
+- `RolesGuard` — la regla "dueño o rol": sin `@Roles` no restringe, dueño siempre puede, no-admin sobre otro rechazado, admin sobre otro permitido
+
+**E2E** (2, `test/app.e2e-spec.ts`, contra la app real con los mismos pipes/filtros que producción — ver `src/setup-app.ts`):
+- Autenticación — alta, login, credenciales inválidas (401), rutas protegidas sin token (401)
+- Chats — listado arranca vacío, creación idempotente, listado con `lastMessage` actualizado
+- Mensajes — envío y lectura, **con verificación de persistencia real**: el mensaje se relee con un `GET` separado (no se confía en la respuesta del `POST`)
+- Autorización — dueño edita/borra lo propio, no-admin rechazado (403) sobre lo ajeno, tercero sin acceso al chat no puede leer sus mensajes (403)
 
 ## Arquitectura
 
