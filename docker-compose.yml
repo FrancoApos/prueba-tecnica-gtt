@@ -6,6 +6,12 @@ services:
       - "27017:27017"
     volumes:
       - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
 
   backend:
     build: ./backend
@@ -20,7 +26,14 @@ services:
       CORS_ORIGIN: ${CORS_ORIGIN:-*}
       UPLOADS_DIR: uploads
     depends_on:
-      - mongo
+      mongo:
+        condition: service_healthy
+    # Seedea datos de prueba y recién ahí levanta el server — así
+    # `docker compose up` deja la API con datos listos en un solo comando,
+    # sin pasos manuales. Se re-seedea en cada reinicio del contenedor
+    # (ver nota en backend/README.md): intencional para un entorno de
+    # evaluación/demo, no para producción.
+    command: ["sh", "-c", "node dist/seed.js && node dist/main.js"]
     volumes:
       - backend-uploads:/app/uploads
 
