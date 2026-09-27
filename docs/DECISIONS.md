@@ -153,7 +153,7 @@ Registro de decisiones de arquitectura y su justificación (formato ADR simplifi
 
 **Alternativas descartadas:** *polling* cada pocos segundos (más simple, pero latencia visible y requests constantes contra un endpoint paginado); SSE (unidireccional alcanzaría, pero Socket.IO ya trae reconexión y rooms, que es justo el ruteo que hacía falta).
 
-**Alcance dejado afuera:** presencia en vivo (`status`/`lastSeenAt` siguen actualizándose solo por REST desde la pantalla de perfil), indicador de "escribiendo…" y recibos de lectura — nada de eso lo pide la consigna.
+**Alcance dejado afuera (en su momento):** indicador de "escribiendo…" y recibos de lectura — nada de eso lo pide la consigna. La presencia en vivo sí se implementó después: ver la entrada del 2026-09-27 más abajo.
 
 ## 2026-09-26 — App web (react-native-web) como segundo cliente para probar en la PC
 
@@ -168,3 +168,21 @@ Registro de decisiones de arquitectura y su justificación (formato ADR simplifi
 **Por qué el split y no un `if`:** los tres casos son "esta plataforma no tiene esta capacidad", no una variación de comportamiento — el split deja el código de las pantallas sin ramas de plataforma y hace que el bundle nativo no cargue nada de web (verificado: en el bundle web no aparece `getItemAsync`).
 
 **Verificación:** `npx expo export --platform web` bundlea sin errores y el bundle usa las variantes web (`localStorage`, `confirm`), no las nativas.
+
+## 2026-09-27 — Presencia en vivo derivada de la conexión del socket
+
+**Contexto:** el header de la conversación muestra "Activo"/"Inactivo" del contacto, pero ese dato venía del listado de chats: se refrescaba solo al recargar, así que podía decir "Activo" con la otra persona hacía rato afuera. La consigna pide "estado de conexión" y "última conexión" como campos del perfil, sin definir quién los escribe.
+
+**Decisión:** el gateway deriva la presencia de la conexión real del socket. Al conectar marca `online`, al desconectar `offline` + `lastSeenAt`, persiste en Mongo y emite `presence:changed` a los contactos.
+
+**Conteo por usuario, no por socket:** una misma persona puede tener varias sesiones abiertas (el celular y la web en paralelo, que es justo el escenario de prueba). El gateway guarda un `Map<userId, Set<socketId>>` y solo cambia el estado en las transiciones 0→1 y 1→0; cerrar una de dos pestañas no la muestra desconectada.
+
+**Solo a los contactos:** `presence:changed` se emite a las rooms de los usuarios con los que tenés un chat (`ChatsService.listContactIds`), no en broadcast. Quien no habló nunca con vos no recibe tus entradas y salidas.
+
+**Convivencia con el toggle manual del perfil** (que la consigna sí pide): los dos caminos escriben el mismo campo y **gana el último**. Un cambio manual se mantiene hasta la próxima transición de conexión (si te ponés "desconectado" a mano y más tarde reabrís la app, volvés a "en línea"). El `PATCH /users/:id` también emite `presence:changed`, así que el toggle se ve en vivo del otro lado igual que la presencia automática — si no, el switch del perfil sería la única parte de la app que exige recargar. No se implementó un "aparecer desconectado" persistente (override manual que el socket no pueda pisar): es alcance que la consigna no pide.
+
+**Dónde vive:** `PresenceService` está en el módulo de realtime y toma el modelo de `User` directo de Mongoose, en vez de depender de `UsersModule`. Así `UsersModule` puede importar `RealtimeModule` para emitir el cambio manual sin armar un ciclo de módulos.
+
+**Alcance dejado afuera:** indicador de "escribiendo…", recibos de lectura, y presencia con más de una instancia del backend (el `Map` es en memoria — con varias instancias haría falta el adapter de Redis, igual que las rooms).
+
+**Verificado** con un script contra el backend real: Bruno observa y recibe `online` cuando Ana conecta; cerrar **una** de las dos sesiones de Ana **no** dispara `offline`; cerrar la última sí, y queda persistido con `lastSeenAt`; y el `PATCH` manual del perfil también le llega en vivo.

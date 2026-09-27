@@ -156,7 +156,9 @@ Documentación completa e interactiva en `/docs` (Swagger).
 El backend expone además un canal de Socket.IO **en el mismo puerto** que el HTTP (`ws://<host>:3000`), para que los participantes de un chat reciban los mensajes nuevos sin recargar.
 
 - **Autenticación:** el mismo JWT del REST, en el handshake — `io(url, { auth: { token } })` (también se acepta el header `Authorization: Bearer <token>`). Sin token válido el server emite `auth:error` y desconecta.
-- **Evento que emite el server:** `message:new`, con exactamente el mismo payload que devuelve `POST /chats/:chatId/messages`. Se emite a **todos** los participantes del chat, incluido el remitente (sus otras sesiones también lo necesitan), así que el cliente deduplica por `id`.
+- **Eventos que emite el server:**
+  - `message:new`, con exactamente el mismo payload que devuelve `POST /chats/:chatId/messages`. Se emite a **todos** los participantes del chat, incluido el remitente (sus otras sesiones también lo necesitan), así que el cliente deduplica por `id`.
+  - `presence:changed` (`{ userId, status, lastSeenAt }`), cuando un usuario entra o sale. Se emite solo a sus **contactos** (con quienes tiene un chat). La presencia se deriva de la conexión del socket, contando sesiones por usuario: se marca `offline` recién cuando se cierra la última. El `PATCH /users/:id` que cambia `status` a mano también lo emite.
 - **El cliente no escribe por WS:** enviar un mensaje sigue siendo el `POST` de siempre. El WS solo empuja lo que ya se persistió — ver la justificación en [`docs/DECISIONS.md`](../docs/DECISIONS.md) ("Tiempo real por WebSocket").
 - **CORS:** el origen del gateway se toma de `CORS_ORIGIN` (igual que el HTTP).
 
@@ -173,7 +175,7 @@ Detalle completo en [`docs/DECISIONS.md`](../docs/DECISIONS.md). Puntos clave:
 ## Alcance pendiente / conocido
 
 - Sin recibos de lectura (doble check), indicador de "escribiendo…" ni edición/borrado de mensajes — no pedidos por la consigna.
-- El `status`/`lastSeenAt` de presencia se actualizan solo por REST (desde la pantalla de perfil): el gateway no los toca al conectar/desconectar.
+- La presencia vive en memoria del proceso (`Map<userId, Set<socketId>>`): con más de una instancia haría falta el adapter de Redis para contar bien las sesiones, igual que para las rooms. Y si el proceso se cae con gente conectada, quedan usuarios marcados `online` hasta que vuelvan a conectar.
 - El gateway mantiene el estado de las conexiones **en memoria**: con más de una instancia del backend haría falta el adapter de Redis de Socket.IO para que las rooms se compartan entre instancias.
 - Los adjuntos persisten en disco del contenedor: con `docker compose` quedan en un volumen; corriendo el contenedor suelto sin volumen, se pierden si se recrea.
 - No hay rate limiting ni endpoint para promover/degradar roles — fuera del alcance evaluado.

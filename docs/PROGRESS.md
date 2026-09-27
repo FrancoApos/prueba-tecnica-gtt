@@ -19,11 +19,12 @@
 - [x] CRUD usuarios/perfiles (alta pública, resto protegido, self-or-admin edit/delete vía `RolesGuard` + `@Roles('admin')`)
 - [x] Listado de usuarios (filtro de texto, paginado, orden) y de chats (paginado por participante, más recientes primero)
 - [x] Conversación (mensajes de texto y adjuntos vía multipart, servidos como estáticos)
+- [x] Presencia en vivo: el gateway marca `online`/`offline` + `lastSeenAt` según la conexión del socket (contando sesiones por usuario) y emite `presence:changed` a los contactos; el toggle manual del perfil también lo emite
 - [x] Tiempo real: gateway de Socket.IO (`src/realtime/`) que empuja `message:new` a los participantes del chat; handshake autenticado con el mismo JWT del REST, socket sin token rechazado. El WS **solo empuja** — escribir sigue siendo el `POST` (ver `docs/DECISIONS.md`)
 - [x] Validaciones (DTOs con class-validator, ValidationPipe global whitelist+forbidNonWhitelisted)
 - [x] Manejo de errores global (`HttpExceptionFilter`, shape consistente)
 - [x] Swagger en `/docs` (con Bearer auth)
-- [x] Tests unitarios (18) + e2e (flujo completo + control de acceso self-or-admin, con `mongodb-memory-server`, sin depender de Docker/Mongo externo)
+- [x] Tests unitarios (25, incluye la presencia del gateway: multi-sesión, offline al cerrar la última, socket sin token) + e2e (flujo completo + control de acceso self-or-admin, con `mongodb-memory-server`, sin depender de Docker/Mongo externo)
 - [x] Seed de datos de prueba (`npm run seed`) con credenciales documentadas
 
 ## Mobile
@@ -35,6 +36,7 @@
 - [x] Diseño UI repintado desde el design system real de Stitch "Pulse Chat" (`docs/design/`) — tokens en `src/theme/tokens.ts` (colores, tipografía Inter, spacing, radios, tamaños, sombras), cero valores sueltos en componentes
 - [x] Fuente Inter cargada (`@expo-google-fonts/inter` + `useFonts` con gate en `app/_layout.tsx`)
 - [x] Adjuntos: imagen (expo-image-picker) y archivo (expo-document-picker) en la conversación
+- [x] Presencia en vivo en la UI: "Activo"/"Inactivo" bajo el nombre en el header de la conversación y el punto del avatar en el listado, actualizados por `presence:changed`
 - [x] Tiempo real: cliente de Socket.IO (`src/realtime/socket.ts`) conectado/desconectado por el store de sesión; la conversación agrega los mensajes entrantes (deduplicados por `id`) y el listado de chats actualiza preview + orden aunque estés en otra pantalla
 - [x] App corriendo en el browser (`npx expo start --web`) como segundo cliente para probar el chat en vivo desde la PC — tres *platform splits* (`secure-storage`, `alert`, `attachment-form`) porque SecureStore, Alert y el FormData de archivos no existen o no funcionan igual en web. Verificado con `expo export --platform web` (bundle sin errores, usa las variantes web)
 - [x] Tests (10): store de sesión (incluye que abra/cierre el canal de tiempo real), utilidades, y formulario de login (éxito/validación/error de credenciales)
