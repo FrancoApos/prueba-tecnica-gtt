@@ -1,4 +1,5 @@
 import type { Message, PaginatedResult } from '@/src/types/api';
+import { appendAttachment } from './attachment-form';
 import { apiClient } from './client';
 
 export function listMessages(chatId: string, page = 1, limit = 30): Promise<PaginatedResult<Message>> {
@@ -11,7 +12,7 @@ export interface OutgoingAttachment {
   mimeType: string;
 }
 
-export function sendMessage(
+export async function sendMessage(
   chatId: string,
   content: string | undefined,
   attachment?: OutgoingAttachment,
@@ -21,12 +22,8 @@ export function sendMessage(
     form.append('content', content);
   }
   if (attachment) {
-    // React Native's FormData acepta este shape de "archivo" en vez de un Blob real.
-    form.append('file', {
-      uri: attachment.uri,
-      name: attachment.name,
-      type: attachment.mimeType,
-    } as unknown as Blob);
+    // El armado del archivo difiere entre nativo y web (ver attachment-form.ts).
+    await appendAttachment(form, attachment);
   }
   return apiClient.post<Message>(`/chats/${chatId}/messages`, form, { isFormData: true });
 }

@@ -1,11 +1,10 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -21,8 +20,20 @@ import { MessageBubble } from '@/src/components/MessageBubble';
 import { useMessages } from '@/src/hooks/useMessages';
 import type { OutgoingAttachment } from '@/src/api/messages';
 import { useSessionStore } from '@/src/store/session';
+import { showAlert, showChoice } from '@/src/utils/alert';
+import { formatDayLabel } from '@/src/utils/format';
 import { colors, radii, sizes, spacing, typography } from '@/src/theme/tokens';
 import type { Message } from '@/src/types/api';
+
+type ConversationListItem =
+  | { type: 'separator'; key: string; label: string }
+  | { type: 'message'; key: string; message: Message };
+
+/** Dia calendario (no franja de 24hs) para agrupar los separadores por fecha real. */
+function dayKeyOf(isoDate: string): string {
+  const date = new Date(isoDate);
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
 
 export default function ConversationScreen() {
   const { chatId, contactName, contactAvatar } = useLocalSearchParams<{
@@ -33,7 +44,21 @@ export default function ConversationScreen() {
   const currentUserId = useSessionStore((s) => s.user?.id);
   const { messages, status, errorMessage, sending, reload, send } = useMessages(chatId);
   const [text, setText] = useState('');
-  const listRef = useRef<FlatList<Message>>(null);
+  const listRef = useRef<FlatList<ConversationListItem>>(null);
+
+  const listItems = useMemo<ConversationListItem[]>(() => {
+    const items: ConversationListItem[] = [];
+    let lastDayKey: string | null = null;
+    for (const message of messages) {
+      const dayKey = dayKeyOf(message.sentAt);
+      if (dayKey !== lastDayKey) {
+        items.push({ type: 'separator', key: `separator-${dayKey}`, label: formatDayLabel(message.sentAt) });
+        lastDayKey = dayKey;
+      }
+      items.push({ type: 'message', key: message.id, message });
+    }
+    return items;
+  }, [messages]);
 
   const submitText = async () => {
     const content = text.trim();
@@ -42,23 +67,22 @@ export default function ConversationScreen() {
     try {
       await send(content);
     } catch {
-      Alert.alert('No se pudo enviar', 'Revisá tu conexión e intentá de nuevo.');
+      showAlert('No se pudo enviar', 'Revisá tu conexión e intentá de nuevo.');
       setText(content);
     }
   };
 
   const pickAndSendAttachment = () => {
-    Alert.alert('Adjuntar', '¿Qué querés enviar?', [
-      { text: 'Foto', onPress: () => void handlePickImage() },
-      { text: 'Archivo', onPress: () => void handlePickDocument() },
-      { text: 'Cancelar', style: 'cancel' },
+    showChoice('Adjuntar', '¿Qué querés enviar?', [
+      { label: 'Foto', onPress: () => void handlePickImage() },
+      { label: 'Archivo', onPress: () => void handlePickDocument() },
     ]);
   };
 
   const handlePickImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert('Permiso necesario', 'Necesitamos acceso a tus fotos para adjuntar una imagen.');
+      showAlert('Permiso necesario', 'Necesitamos acceso a tus fotos para adjuntar una imagen.');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7 });
@@ -88,7 +112,7 @@ export default function ConversationScreen() {
     try {
       await send(content, attachment);
     } catch {
-      Alert.alert('No se pudo enviar el adjunto', 'Revisá tu conexión e intentá de nuevo.');
+      showAlert('No se pudo enviar el adjunto', 'Revisá tu conexión e intentá de nuevo.');
     }
   };
 
@@ -129,9 +153,17 @@ export default function ConversationScreen() {
       {status === 'ready' && messages.length > 0 && (
         <FlatList
           ref={listRef}
-          data={messages}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <MessageBubble message={item} isOwn={item.senderId === currentUserId} />}
+          data={listItems}
+          keyExtractor={(item) => item.key}
+          renderItem={({ item }) =>
+            item.type === 'separator' ? (
+              <View style={styles.daySeparator}>
+                <Text style={styles.daySeparatorText}>{item.label}</Text>
+              </View>
+            ) : (
+              <MessageBubble message={item.message} isOwn={item.message.senderId === currentUserId} />
+            )
+          }
           contentContainerStyle={styles.listContent}
           onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
         />
@@ -181,6 +213,19 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingVertical: spacing.sm,
+  },
+  daySeparator: {
+    alignItems: 'center',
+    marginVertical: spacing.sm,
+  },
+  daySeparatorText: {
+    ...typography.captionMedium,
+    color: colors.textTertiary,
+    backgroundColor: colors.surfaceContainer,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radii.pill,
+    overflow: 'hidden',
   },
   inputBar: {
     flexDirection: 'row',
