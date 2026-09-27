@@ -48,4 +48,18 @@ export class User {
 export const UserSchema = SchemaFactory.createForClass(User);
 
 /** El índice único de `email` ya lo crea `unique: true` en el @Prop de arriba. */
-UserSchema.index({ firstName: 1, lastName: 1 });
+
+/**
+ * Soporta el ordenamiento *default* del directorio (`GET /users` sin
+ * `sortBy`, que es `lastName` ascendente — ver `QueryUsersDto`): el orden de
+ * los campos importa, `lastName` va primero porque es el campo líder del
+ * sort default, y `firstName` como desempate.
+ *
+ * No cubre los otros `sortBy` posibles (`email`, `createdAt`) ni el filtro de
+ * texto (`$regex` sobre firstName/lastName/email) — un B-tree compuesto no
+ * resuelve una búsqueda de substring. Para este alcance (puñado de usuarios
+ * de prueba) un collection scan en esos casos es aceptable; a escala real
+ * haría falta un índice de texto (`text` o Atlas Search) para el filtro, y
+ * uno adicional si `email`/`createdAt` fueran órdenes frecuentes.
+ */
+UserSchema.index({ lastName: 1, firstName: 1 });
