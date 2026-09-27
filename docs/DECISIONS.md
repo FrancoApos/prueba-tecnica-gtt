@@ -136,3 +136,33 @@ Registro de decisiones de arquitectura y su justificación (formato ADR simplifi
 **Mobile:** la pantalla de Users (`app/(app)/(tabs)/users.tsx`, `app/(app)/edit-user.tsx`) se muestra siempre — es el directorio para iniciar chats con cualquiera. Los botones de editar/eliminar en la fila de **otro** usuario se ocultan si `user.role !== 'admin'`; la autorización real sigue siendo del lado del servidor (RolesGuard), esto es solo para no ofrecer una acción que el backend va a rechazar igual.
 
 **Alternativas descartadas:** login/sesión de admin separada (contradice "un login, redirige a chats"); dejar el directorio de solo lectura sin rol alguno (no cumpliría "actualización y eliminación de usuarios" tal como lo interpretó el mock de Stitch, que sí es parte de la consigna).
+
+---
+
+## 2026-09-26 — Tiempo real por WebSocket (push sobre REST, no un segundo camino de escritura)
+
+**Contexto:** la consigna pide "actualización inmediata de la interfaz al enviar" (que ya se cumplía con el update local al responder el POST), pero no dice nada de recibir en vivo lo que manda el otro. Sin eso, la app solo muestra los mensajes nuevos al re-entrar a la conversación: alcanza para la consigna, pero es imposible *demostrar* un chat con dos clientes al mismo tiempo, que es exactamente cómo se prueba una app de chat.
+
+**Decisión:** se agregó un gateway de Socket.IO (`src/realtime/realtime.gateway.ts`) que **solo empuja**. El REST sigue siendo el único camino de escritura: el mensaje se persiste en `POST /chats/:chatId/messages` y recién después el service llama a `emitMessageCreated(...)` con el mismo DTO que devuelve HTTP. No hay un evento de "enviar mensaje" por WS.
+
+**Por qué:** un segundo camino de escritura duplicaría validación, autorización y manejo de errores (y sería un agujero fácil de dejar abierto). Así el WS es una mejora de UX sobre una API que ya estaba completa y testeada, y si el socket se cae la app sigue funcionando entera con un reload de la pantalla.
+
+**Autenticación:** el handshake del socket valida el **mismo JWT** del REST (`handshake.auth.token`, con fallback al header `Authorization`); si falta o es inválido se emite `auth:error` y se desconecta. Cada cliente autenticado queda en una room `user:<id>`, y un mensaje nuevo se emite a la room de **cada participante del chat, incluido el remitente** (sus otras sesiones — otro dispositivo, o la app web abierta en paralelo — también lo necesitan). El cliente deduplica por `id`, así que recibir de vuelta el propio mensaje no duplica la burbuja.
+
+**Alternativas descartadas:** *polling* cada pocos segundos (más simple, pero latencia visible y requests constantes contra un endpoint paginado); SSE (unidireccional alcanzaría, pero Socket.IO ya trae reconexión y rooms, que es justo el ruteo que hacía falta).
+
+**Alcance dejado afuera:** presencia en vivo (`status`/`lastSeenAt` siguen actualizándose solo por REST desde la pantalla de perfil), indicador de "escribiendo…" y recibos de lectura — nada de eso lo pide la consigna.
+
+## 2026-09-26 — App web (react-native-web) como segundo cliente para probar en la PC
+
+**Contexto:** para probar un chat en vivo hacen falta **dos** clientes. El entorno de desarrollo es Windows, donde no existe el simulador de iOS (es solo macOS): el iPhone va con Expo Go, pero la PC necesitaba algo.
+
+**Decisión:** se habilitó el target web de Expo (`react-dom`, `react-native-web`, `@expo/metro-runtime`) para usar el browser como segundo cliente. **No es un entregable**: la entrega sigue siendo la app nativa; la web es la herramienta para poder demostrar el flujo de a dos. Se resolvió con tres *platform splits* (Metro resuelve el sufijo `.web` automáticamente), en vez de meter `Platform.OS === 'web'` en las pantallas:
+
+- `src/store/secure-storage.ts` / `.web.ts` — `expo-secure-store` **no tiene implementación web** (su módulo nativo en web es literalmente `export default {}`, así que la sesión rompía al hidratar). En web se usa `localStorage`, que no es almacenamiento seguro: aceptable porque el browser acá es solo herramienta de prueba, no el target de entrega.
+- `src/utils/alert.ts` / `.web.ts` — el `Alert` de react-native-web es un no-op (`static alert() {}`), así que el menú de "Adjuntar" quedaba muerto en el browser. En web degrada a confirmaciones en cadena.
+- `src/api/attachment-form.ts` / `.web.ts` — el FormData de React Native acepta el shape `{ uri, name, type }`; el del browser necesita un `Blob`/`File` real, que se obtiene leyendo la URI `blob:` del picker.
+
+**Por qué el split y no un `if`:** los tres casos son "esta plataforma no tiene esta capacidad", no una variación de comportamiento — el split deja el código de las pantallas sin ramas de plataforma y hace que el bundle nativo no cargue nada de web (verificado: en el bundle web no aparece `getItemAsync`).
+
+**Verificación:** `npx expo export --platform web` bundlea sin errores y el bundle usa las variantes web (`localStorage`, `confirm`), no las nativas.

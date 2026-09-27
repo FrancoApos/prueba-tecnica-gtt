@@ -71,7 +71,7 @@ docker run -p 3000:3000 -e MONGODB_URI=... -e JWT_SECRET=... chat-app-backend
 docker compose up --build
 ```
 
-`docker-compose.yml` (en la raíz del repo) levanta Mongo y el backend juntos, con un volumen para persistir los adjuntos entre reinicios del contenedor.
+`docker-compose.yml` (en la raíz del repo) levanta Mongo y el backend juntos, con un volumen para persistir los adjuntos entre reinicios del contenedor. El backend espera a que Mongo esté realmente listo (`healthcheck`, no solo "el contenedor arrancó") y **corre el seed automáticamente antes de levantar el server** — con un solo `docker compose up --build` la API queda arriba con las 3 cuentas de prueba ya cargadas, sin pasos manuales. Esto re-siembra la base en cada reinicio del contenedor (a propósito, para un entorno de evaluación/demo con estado conocido — no es el comportamiento que se querría en producción).
 
 ## Tests
 
@@ -92,6 +92,7 @@ src/
 ├── users/          alta/consulta/edición/baja de usuarios, perfil
 ├── chats/          chats 1 a 1 entre usuarios
 ├── messages/        mensajes de un chat (texto y/o adjunto)
+├── realtime/        gateway de Socket.IO (push de mensajes nuevos, autenticado con el mismo JWT)
 ├── common/          filtro de errores global, guard JWT, decorator @CurrentUser, DTO de paginado
 ├── config/          configuración tipada desde variables de entorno
 ├── setup-app.ts     pipes/filtros/CORS/estáticos compartidos entre main.ts y los tests e2e
@@ -118,17 +119,29 @@ Cada módulo sigue el mismo patrón: `schema` (Mongoose) → `dto` (class-valida
 
 Documentación completa e interactiva en `/docs` (Swagger).
 
+## Tiempo real (WebSocket)
+
+El backend expone además un canal de Socket.IO **en el mismo puerto** que el HTTP (`ws://<host>:3000`), para que los participantes de un chat reciban los mensajes nuevos sin recargar.
+
+- **Autenticación:** el mismo JWT del REST, en el handshake — `io(url, { auth: { token } })` (también se acepta el header `Authorization: Bearer <token>`). Sin token válido el server emite `auth:error` y desconecta.
+- **Evento que emite el server:** `message:new`, con exactamente el mismo payload que devuelve `POST /chats/:chatId/messages`. Se emite a **todos** los participantes del chat, incluido el remitente (sus otras sesiones también lo necesitan), así que el cliente deduplica por `id`.
+- **El cliente no escribe por WS:** enviar un mensaje sigue siendo el `POST` de siempre. El WS solo empuja lo que ya se persistió — ver la justificación en [`docs/DECISIONS.md`](../docs/DECISIONS.md) ("Tiempo real por WebSocket").
+- **CORS:** el origen del gateway se toma de `CORS_ORIGIN` (igual que el HTTP).
+
 ## Decisiones relevantes (resumen)
 
 Detalle completo en [`docs/DECISIONS.md`](../docs/DECISIONS.md). Puntos clave:
 
 - **No hay pantalla/endpoint de "registro" separado**: `POST /users` es el alta de cuenta.
 - **Roles acotados (self-or-admin), no un login admin separado**: un único flujo de login para todos (la consigna solo pide uno). `PATCH`/`DELETE /users/:id` los resuelve un `RolesGuard` genérico: el dueño del recurso siempre puede actuar sobre el suyo; actuar sobre el de otro requiere rol `admin` (`@Roles('admin')`). El rol nunca se acepta en `POST /users` (nadie se autopromueve) — el único admin de la app nace en el seed. Justificación completa en `docs/DECISIONS.md` ("Roles (self-or-admin), no un login admin separado").
+- **Tiempo real como *push* sobre REST**: el gateway de Socket.IO no acepta escrituras; el mensaje se persiste por HTTP y recién entonces se empuja a los participantes. Evita duplicar validación/autorización en un segundo camino de escritura.
 - **Chats solo 1 a 1** (no grupales) — ver `docs/DECISIONS.md` y `docs/DATA_MODEL.md`.
 - **Adjuntos** se guardan en disco (`uploads/`, servida como estática en `/uploads/*`) — sin S3 ni base64, ver justificación en `docs/DECISIONS.md`.
 
 ## Alcance pendiente / conocido
 
-- Sin recibos de lectura (doble check) ni edición/borrado de mensajes — no pedidos por la consigna.
+- Sin recibos de lectura (doble check), indicador de "escribiendo…" ni edición/borrado de mensajes — no pedidos por la consigna.
+- El `status`/`lastSeenAt` de presencia se actualizan solo por REST (desde la pantalla de perfil): el gateway no los toca al conectar/desconectar.
+- El gateway mantiene el estado de las conexiones **en memoria**: con más de una instancia del backend haría falta el adapter de Redis de Socket.IO para que las rooms se compartan entre instancias.
 - Los adjuntos persisten en disco del contenedor: con `docker compose` quedan en un volumen; corriendo el contenedor suelto sin volumen, se pierden si se recrea.
 - No hay rate limiting ni endpoint para promover/degradar roles — fuera del alcance evaluado.

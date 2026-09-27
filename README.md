@@ -46,7 +46,7 @@ cp .env.example .env   # ajustar EXPO_PUBLIC_API_URL — ver comentarios en el a
 npx expo start
 ```
 
-Escaneá el QR con Expo Go (iOS/Android) o abrí un emulador/simulador. Detalle completo en [`mobile/README.md`](mobile/README.md).
+Escaneá el QR con Expo Go (iOS/Android) o abrí un emulador/simulador. Para abrir la app en el browser de la PC (útil para probar un chat en vivo entre dos clientes): `npx expo start --web`. Detalle completo en [`mobile/README.md`](mobile/README.md).
 
 ## Credenciales de prueba
 
@@ -60,4 +60,4 @@ Después de correr `npm run seed` en `backend/` (ver [`backend/README.md`](backe
 
 ## Estado del proyecto
 
-Ver [`docs/PROGRESS.md`](docs/PROGRESS.md) para el detalle. En resumen: **backend y mobile funcionales de punta a punta** — login, listado de chats, conversación (texto + adjuntos) y perfil, contra la API real. Pendiente de verificación en un dispositivo físico por el usuario y de probar el build de Docker (sin Docker disponible en el entorno de desarrollo).
+Ver [`docs/PROGRESS.md`](docs/PROGRESS.md) para el detalle. En resumen: **backend y mobile funcionales de punta a punta** — login, listado de chats, directorio de usuarios, conversación (texto + adjuntos, con mensajes en **tiempo real** vía WebSocket) y perfil, contra la API real. Pendiente de verificación en un dispositivo físico por el usuario y de probar el build de Docker (sin Docker disponible en el entorno de desarrollo).

@@ -34,7 +34,8 @@ Te va a mostrar un **QR**:
 
 - **iPhone/Android físico (Expo Go):** escaneá el QR con la cámara (iOS) o con la app de Expo Go (Android). El celular y esta PC tienen que estar en la **misma red Wi-Fi**.
 - **Emulador Android:** con el emulador corriendo, apretá `a` en la terminal donde corre `expo start`.
-- **Simulador iOS (requiere Mac):** apretá `i`.
+- **Simulador iOS (requiere Mac):** apretá `i`. En Windows no hay simulador de iOS — para iPhone, usá Expo Go.
+- **Browser de la PC:** apretá `w` (o `npx expo start --web`). Sirve como **segundo cliente** para probar el chat en vivo (iPhone ↔ PC) sin instalar un emulador. No es el target de entrega: la sesión se guarda en `localStorage` en vez del almacén seguro del dispositivo, y los diálogos nativos degradan a los del browser (ver `docs/DECISIONS.md`, "App web (react-native-web) como segundo cliente").
 
 **Importante:** `EXPO_PUBLIC_API_URL` en `.env` tiene que apuntar a una URL que el celular pueda alcanzar — `localhost` no sirve para un dispositivo físico porque "localhost" ahí es el propio celular. Usá la IP de LAN de tu PC (ver `.env.example`). Si el backend no responde desde el celular pero sí desde la PC, revisá el Firewall de Windows (puede bloquear conexiones entrantes al puerto 3000 desde otros dispositivos).
 
@@ -65,8 +66,12 @@ app/                         Rutas (Expo Router — cada archivo es una pantalla
 
 src/
 ├── api/                      Cliente HTTP centralizado + un módulo por recurso (auth, users, chats, messages)
+│   └── attachment-form.ts     Arma el archivo del FormData (variante .web.ts: Blob real en vez del shape de RN)
+├── realtime/socket.ts        Cliente de Socket.IO: conecta con el JWT y reparte los `message:new` a quien se suscriba
 ├── store/                    Zustand: session (JWT + usuario) y chats (listado + lastMessage)
-├── hooks/useMessages.ts       Estado de la conversación (fetch, envío, optimistic update del listado)
+│   └── secure-storage.ts      Persistencia de la sesión (variante .web.ts: localStorage, porque SecureStore no existe en web)
+├── hooks/useMessages.ts       Estado de la conversación (fetch, envío, mensajes entrantes por WS, optimistic update)
+├── utils/alert.ts             Avisos y menús (variante .web.ts: el Alert de react-native-web es un no-op)
 ├── components/                Avatar, ChatListItem, MessageBubble, StateView (loading/error/empty), FormTextInput
 ├── types/api.ts               Tipos que reflejan los DTOs del backend
 └── config.ts                  URL de la API (EXPO_PUBLIC_API_URL) y resolución de URLs de adjuntos
@@ -78,6 +83,7 @@ Detalle completo en [`../docs/DECISIONS.md`](../docs/DECISIONS.md).
 
 - **Sin pantalla de registro**: la consigna solo pide login. La creación de usuarios es responsabilidad del backend (`POST /users`, usado por el seed). Para poder iniciar una conversación nueva desde la app (necesario para que el flujo "listado → conversación" sea usable, no solo con chats preexistentes) se agregó una pantalla mínima de "Nuevo chat" que busca usuarios ya dados de alta y abre/crea el chat — no es una funcionalidad pedida explícitamente, pero es indispensable para poder demostrar el flujo completo. Se dispara desde un FAB en el listado de chats (siguiendo el diseño de Stitch).
 - **Módulo de Users (obligatorio, ver `docs/REQUIREMENTS.md`)**: tab "Users" con búsqueda + paginado del directorio. Tocar una fila inicia un chat con esa persona (mismo mecanismo que "Nuevo chat"). Editar/eliminar la cuenta de *otro* usuario solo se muestra si `session.user.role === 'admin'` — la autorización real la exige el backend (`RolesGuard`), esto solo evita ofrecer un botón que el servidor va a rechazar. Detalle en `docs/DECISIONS.md` ("Roles (self-or-admin)...").
+- **Tiempo real por WebSocket**: al iniciar sesión (o al hidratar una guardada) el store abre un socket autenticado con el mismo JWT del REST. La conversación agrega los mensajes que llegan (deduplicados por `id`, porque el server también le reenvía el propio mensaje al remitente para sus otras sesiones) y el listado de chats actualiza preview y orden aunque estés en otra pantalla. Enviar sigue siendo el `POST` de siempre: el WS solo recibe.
 - **No se edita el avatar desde la app**: el backend solo acepta una URL de imagen para `avatarUrl` (no upload de archivo en el perfil), así que no tiene una buena UX en mobile — se dejó fuera del alcance.
 - **Adjuntos**: se pueden enviar imagen (`expo-image-picker`) o archivo (`expo-document-picker`); se envían de una junto con el texto actual del campo, sin paso de "previsualizar antes de enviar" (simplificación consciente).
 - **Diseño**: la UI sigue el design system "Pulse Chat" generado en Stitch (ver `docs/design/`) — colores, tipografía (Inter), spacing y radios viven como tokens en `src/theme/tokens.ts`, sin valores sueltos en los componentes.
@@ -91,6 +97,6 @@ npm run typecheck    # tsc --noEmit
 npm run lint          # expo lint
 ```
 
-Cubren: el store de sesión (login/logout/hidratación desde SecureStore), utilidades puras de formateo, y el formulario de login (validaciones, submit exitoso, error de credenciales inválidas).
+Cubren: el store de sesión (login/logout/hidratación desde el almacén seguro, y que abra/cierre el canal de tiempo real), utilidades puras de formateo, y el formulario de login (validaciones, submit exitoso, error de credenciales inválidas).
 
 > Nota: vas a ver algunos `console.error` de "overlapping act() calls" al correr los tests de `sign-in`. Es ruido de una incompatibilidad conocida entre esta combinación específica de versiones (React 19.2/Expo SDK 57/RNTL 14, todas muy recientes) — los tests pasan igual; se investigó y se aisló cada escenario en su propio archivo para evitar que ese bug de interop hiciera fallar un test que en aislamiento pasa perfecto.

@@ -19,6 +19,7 @@
 - [x] CRUD usuarios/perfiles (alta pública, resto protegido, self-or-admin edit/delete vía `RolesGuard` + `@Roles('admin')`)
 - [x] Listado de usuarios (filtro de texto, paginado, orden) y de chats (paginado por participante, más recientes primero)
 - [x] Conversación (mensajes de texto y adjuntos vía multipart, servidos como estáticos)
+- [x] Tiempo real: gateway de Socket.IO (`src/realtime/`) que empuja `message:new` a los participantes del chat; handshake autenticado con el mismo JWT del REST, socket sin token rechazado. El WS **solo empuja** — escribir sigue siendo el `POST` (ver `docs/DECISIONS.md`)
 - [x] Validaciones (DTOs con class-validator, ValidationPipe global whitelist+forbidNonWhitelisted)
 - [x] Manejo de errores global (`HttpExceptionFilter`, shape consistente)
 - [x] Swagger en `/docs` (con Bearer auth)
@@ -34,10 +35,12 @@
 - [x] Diseño UI repintado desde el design system real de Stitch "Pulse Chat" (`docs/design/`) — tokens en `src/theme/tokens.ts` (colores, tipografía Inter, spacing, radios, tamaños, sombras), cero valores sueltos en componentes
 - [x] Fuente Inter cargada (`@expo-google-fonts/inter` + `useFonts` con gate en `app/_layout.tsx`)
 - [x] Adjuntos: imagen (expo-image-picker) y archivo (expo-document-picker) en la conversación
-- [x] Tests (10): store de sesión, utilidades, y formulario de login (éxito/validación/error de credenciales)
+- [x] Tiempo real: cliente de Socket.IO (`src/realtime/socket.ts`) conectado/desconectado por el store de sesión; la conversación agrega los mensajes entrantes (deduplicados por `id`) y el listado de chats actualiza preview + orden aunque estés en otra pantalla
+- [x] App corriendo en el browser (`npx expo start --web`) como segundo cliente para probar el chat en vivo desde la PC — tres *platform splits* (`secure-storage`, `alert`, `attachment-form`) porque SecureStore, Alert y el FormData de archivos no existen o no funcionan igual en web. Verificado con `expo export --platform web` (bundle sin errores, usa las variantes web)
+- [x] Tests (10): store de sesión (incluye que abra/cierre el canal de tiempo real), utilidades, y formulario de login (éxito/validación/error de credenciales)
 - [x] `expo-doctor` 21/21 y bundle de producción (Metro, Android) verificados sin errores
 - [x] **Módulo de usuarios** (obligatorio, ver `docs/REQUIREMENTS.md`): tab "Users" — directorio con búsqueda + paginado, tap para iniciar chat con cualquiera, editar/eliminar la cuenta de *otro* usuario solo visible si el rol es `admin` (gate real del lado del servidor, ver `docs/DECISIONS.md` "Roles (self-or-admin)")
-- [ ] Probado en dispositivo físico real por el usuario (backend expuesto en LAN, pendiente de confirmación del usuario)
+- [ ] Probado en dispositivo físico real por el usuario (backend expuesto en LAN, pendiente de confirmación del usuario) — el camino de tiempo real sí está verificado de punta a punta por script (dos sesiones reales contra el backend real, ver Notas)
 - [ ] Ordenar el listado de Users (el mock de Stitch tiene un bottom sheet de "Sort by" — no implementado, se usa el orden default del backend)
 
 ## Documentación y entrega
@@ -52,4 +55,5 @@
 - Usuario conoce SQL/PostgreSQL, no tiene experiencia previa con MongoDB — las explicaciones de modelado usan analogías con el mundo relacional.
 - Docker no está disponible en este entorno de desarrollo — el `Dockerfile`/`docker-compose.yml` no se probaron corriendo un build real, pero el backend sí se validó de punta a punta (Nest build real + Mongo real en memoria + requests HTTP reales via curl y vía el test e2e). Queda como pendiente de verificación manual del build de Docker en una máquina con Docker instalado.
 - El usuario tiene un iPhone 16 Pro y planea probar la app mobile ahí vía Expo Go, con el backend corriendo en esta PC y expuesto en la red local (IP de LAN detectada: `192.168.100.6`). Si el celular no logra conectar, el sospechoso número uno es el Firewall de Windows bloqueando conexiones entrantes al puerto 3000.
-- **Trabajo en paralelo (otra sesión de Claude Code, del propio usuario):** mensajería en tiempo real por WebSocket (`backend/src/realtime/`, `mobile/src/realtime/`, más `secure-storage.ts`/`attachment-form.ts` en mobile) — visto en disco pero sin tocar desde esta sesión, a pedido explícito del usuario. Si retomás este proyecto en una sesión futura y ves esos archivos, no son restos raros: es una feature real en curso, confirmada por el usuario el 2026-09-26.
+- **Tiempo real + app web (2026-09-26, desarrollado en una sesión de Claude Code en paralelo al módulo de usuarios):** `backend/src/realtime/` (gateway Socket.IO), `mobile/src/realtime/socket.ts` (cliente) y los tres splits web de mobile (`src/store/secure-storage*.ts`, `src/utils/alert*.ts`, `src/api/attachment-form*.ts`). **Verificado** con un script que levanta Mongo en memoria + el backend real, loguea a `ana` y `bruno`, abre el socket de Bruno y manda un mensaje como Ana por REST: Bruno lo recibe por `message:new` con el mismo `id`/`chatId`/contenido que devolvió el POST, y un socket sin token es rechazado con `auth:error`. También `expo export --platform web` bundlea limpio.
+- **Para probar el chat en vivo entre el iPhone y la PC:** `EXPO_PUBLIC_API_URL` tiene que ser la **IP de LAN** (`http://192.168.100.6:3000`) para los *dos* clientes — si la web usa `localhost` y el iPhone la IP, el JWT y el socket funcionan igual, pero es un detalle menos que puede fallar. El backend escucha en `0.0.0.0`, así que el mismo puerto 3000 sirve para HTTP y WS.
