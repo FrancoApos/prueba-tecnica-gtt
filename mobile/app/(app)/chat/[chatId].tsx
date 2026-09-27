@@ -18,6 +18,7 @@ import { EmptyState, ErrorState, LoadingState } from '@/src/components/StateView
 import { MessageBubble } from '@/src/components/MessageBubble';
 import { useMessages, type LocalMessage } from '@/src/hooks/useMessages';
 import type { OutgoingAttachment } from '@/src/api/messages';
+import { useChatsStore } from '@/src/store/chats';
 import { useSessionStore } from '@/src/store/session';
 import { showAlert, showChoice } from '@/src/utils/alert';
 import { formatDayLabel } from '@/src/utils/format';
@@ -40,6 +41,15 @@ export default function ConversationScreen() {
     contactAvatar?: string;
   }>();
   const currentUserId = useSessionStore((s) => s.user?.id);
+  // El contacto sale del store: es lo único que trae el estado de conexión y
+  // se mantiene al día con el listado. Los params quedan como fallback para el
+  // primer render y para un chat recién creado que todavía no entró al store.
+  const contact = useChatsStore((s) => s.chats.find((c) => c.id === chatId)?.contact);
+  const contactFullName = contact ? `${contact.firstName} ${contact.lastName}` : (contactName ?? '');
+  const contactFirstName = contact?.firstName ?? contactName?.split(' ')[0] ?? '';
+  const contactLastName = contact?.lastName ?? contactName?.split(' ')[1] ?? '';
+  const contactAvatarUrl = contact?.avatarUrl ?? (contactAvatar || null);
+  const contactStatus = contact?.status;
   const { messages, status, errorMessage, reload, send, retry } = useMessages(chatId);
   const [text, setText] = useState('');
   const listRef = useRef<FlatList<ConversationListItem>>(null);
@@ -95,6 +105,21 @@ export default function ConversationScreen() {
     const result = await DocumentPicker.getDocumentAsync({});
     if (result.canceled || !result.assets[0]) return;
     const asset = result.assets[0];
+    // El picker puede devolver un asset sin una URI legible (archivo no
+    // materializado localmente, o el proveedor de documentos no terminó de
+    // resolverlo) aunque reporte un tamaño no nulo — el tipo de
+    // DocumentPickerAsset dice `uri: string` siempre, pero en runtime no
+    // siempre es cierto (visto con un .docx real: `uri` llegaba vacío y React
+    // Native rechazaba el FormData con "Unsupported FormDataPart
+    // implementation" en vez de un error de red entendible). Mejor avisar de
+    // una que intentar subir algo ilegible.
+    if (!asset.uri || asset.size === 0) {
+      showAlert(
+        'No se pudo leer el archivo',
+        'Puede que todavía no esté descargado en el teléfono, o el sistema no dio una ubicación válida. Esperá un momento o elegí otro.',
+      );
+      return;
+    }
     sendAttachment({
       uri: asset.uri,
       name: asset.name,
@@ -116,17 +141,39 @@ export default function ConversationScreen() {
     >
       <Stack.Screen
         options={{
-          headerTitle: () => (
-            <View style={styles.headerTitle}>
+          // Sin esto iOS pone al lado de la flecha el título de la pantalla
+          // anterior; como el listado vive en el grupo de rutas `(tabs)`, ahí
+          // aparecía literalmente "(tabs)".
+          headerBackButtonDisplayMode: 'minimal',
+          // `headerTitleAlign: 'left'` no sirve acá: en iOS el título del
+          // header nativo va siempre al center view (esa opción es solo
+          // Android), y quedaba un hueco enorme entre la flecha y el contacto.
+          // El bloque se monta entonces como `headerLeft`; con
+          // `headerBackVisible` la flecha nativa se renderiza DENTRO de esa
+          // misma vista (backButtonInCustomView), así que queda todo junto y
+          // pegado a la izquierda, sin dejar de ser el botón nativo.
+          headerTitleAlign: 'left',
+          headerBackVisible: true,
+          headerTitle: () => null,
+          headerLeft: () => (
+            <View style={styles.headerContact}>
               <Avatar
-                firstName={contactName?.split(' ')[0] ?? ''}
-                lastName={contactName?.split(' ')[1] ?? ''}
-                avatarUrl={contactAvatar || null}
+                firstName={contactFirstName}
+                lastName={contactLastName}
+                avatarUrl={contactAvatarUrl}
+                status={contactStatus}
                 size={sizes.avatarConversationHeader}
               />
-              <Text style={styles.headerName} numberOfLines={1}>
-                {contactName}
-              </Text>
+              <View style={styles.headerTexts}>
+                <Text style={styles.headerName} numberOfLines={1}>
+                  {contactFullName}
+                </Text>
+                {contactStatus && (
+                  <Text style={styles.headerStatus} numberOfLines={1}>
+                    {contactStatus === 'online' ? 'Activo' : 'Inactivo'}
+                  </Text>
+                )}
+              </View>
             </View>
           ),
         }}
@@ -193,14 +240,22 @@ export default function ConversationScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1, backgroundColor: colors.background },
-  headerTitle: {
+  headerContact: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
   },
+  headerTexts: {
+    justifyContent: 'center',
+  },
   headerName: {
     ...typography.conversationHeaderName,
     color: colors.textPrimary,
+    maxWidth: 180,
+  },
+  headerStatus: {
+    ...typography.caption,
+    color: colors.textSecondary,
     maxWidth: 180,
   },
   listContent: {

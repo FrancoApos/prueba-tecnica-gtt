@@ -21,6 +21,13 @@ export interface AuthResponse {
   user: User;
 }
 
+/** Payload del evento `presence:changed` del gateway. */
+export interface PresenceUpdate {
+  userId: string;
+  status: ConnectionStatus;
+  lastSeenAt: string | null;
+}
+
 export interface ChatContact {
   id: string;
   firstName: string;

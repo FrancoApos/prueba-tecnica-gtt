@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { createChat as createChatRequest, listChats as listChatsRequest } from '@/src/api/chats';
 import { ApiError } from '@/src/api/client';
-import type { Chat, LastMessagePreview, Message } from '@/src/types/api';
+import type { Chat, LastMessagePreview, Message, PresenceUpdate } from '@/src/types/api';
 
 interface ChatsState {
   chats: Chat[];
@@ -11,6 +11,7 @@ interface ChatsState {
   startChat: (participantId: string) => Promise<Chat>;
   applyLastMessage: (chatId: string, preview: LastMessagePreview) => void;
   applyIncomingMessage: (message: Message) => void;
+  applyPresence: (update: PresenceUpdate) => void;
 }
 
 export const useChatsStore = create<ChatsState>((set, get) => ({
@@ -55,6 +56,25 @@ export const useChatsStore = create<ChatsState>((set, get) => ({
       content: message.content,
       senderId: message.senderId,
       sentAt: message.sentAt,
+    });
+  },
+
+  /**
+   * Presencia empujada por el gateway. Actualiza el contacto del chat, que es
+   * de donde leen tanto el punto del listado como el header de la conversación.
+   */
+  applyPresence: (update) => {
+    set((state) => {
+      if (!state.chats.some((chat) => chat.contact.id === update.userId)) {
+        return state;
+      }
+      return {
+        chats: state.chats.map((chat) =>
+          chat.contact.id === update.userId
+            ? { ...chat, contact: { ...chat.contact, status: update.status } }
+            : chat,
+        ),
+      };
     });
   },
 

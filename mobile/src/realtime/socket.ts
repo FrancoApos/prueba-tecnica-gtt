@@ -1,14 +1,17 @@
 import { io, type Socket } from 'socket.io-client';
 import { notifyUnauthorized } from '@/src/api/auth-events';
 import { API_URL } from '@/src/config';
-import type { Message } from '@/src/types/api';
+import type { Message, PresenceUpdate } from '@/src/types/api';
 
 /** Mismo nombre de evento que emite el gateway del backend. */
 const MESSAGE_CREATED_EVENT = 'message:new';
 /** El gateway lo emite y desconecta cuando falta el token o está vencido/inválido. */
 const AUTH_ERROR_EVENT = 'auth:error';
+/** Presencia: un contacto tuyo entró o salió. */
+const PRESENCE_CHANGED_EVENT = 'presence:changed';
 
 type MessageListener = (message: Message) => void;
+type PresenceListener = (update: PresenceUpdate) => void;
 
 let socket: Socket | null = null;
 
@@ -18,6 +21,7 @@ let socket: Socket | null = null;
  * suscripciones sobreviven a una reconexión.
  */
 const listeners = new Set<MessageListener>();
+const presenceListeners = new Set<PresenceListener>();
 
 /**
  * Abre el canal de tiempo real autenticado con el mismo JWT del REST. Se
@@ -34,6 +38,12 @@ export function connectSocket(token: string): void {
   instance.on(MESSAGE_CREATED_EVENT, (message: Message) => {
     for (const listener of listeners) {
       listener(message);
+    }
+  });
+
+  instance.on(PRESENCE_CHANGED_EVENT, (update: PresenceUpdate) => {
+    for (const listener of presenceListeners) {
+      listener(update);
     }
   });
 
@@ -58,5 +68,13 @@ export function onMessageCreated(listener: MessageListener): () => void {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
+  };
+}
+
+/** Suscribe a los cambios de presencia de tus contactos. Devuelve el unsubscribe. */
+export function onPresenceChanged(listener: PresenceListener): () => void {
+  presenceListeners.add(listener);
+  return () => {
+    presenceListeners.delete(listener);
   };
 }
