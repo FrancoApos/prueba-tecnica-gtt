@@ -43,11 +43,17 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       headers,
       body: isFormData ? (body as FormData) : body !== undefined ? JSON.stringify(body) : undefined,
     });
-  } catch {
+  } catch (err) {
+    // El polyfill de fetch de RN no distingue "sin conexión" de "no pudo leer
+    // el archivo adjunto" — ambos llegan acá como el mismo TypeError genérico.
+    // Antes esto se pisaba con un mensaje fijo; ahora se agrega el detalle
+    // real (aunque sea igual de genérico del lado nativo) para poder
+    // diagnosticar sin adivinar.
+    const detail = err instanceof Error ? err.message : String(err);
     throw new ApiError({
       statusCode: 0,
       error: 'Network Error',
-      message: 'No pudimos conectar con el servidor. Revisá tu conexión.',
+      message: `No pudimos conectar con el servidor. Revisá tu conexión. (${detail})`,
       path,
       timestamp: new Date().toISOString(),
     });
