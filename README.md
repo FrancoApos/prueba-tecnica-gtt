@@ -25,7 +25,7 @@ La consigna permite bibliotecas externas "cuando su uso esté documentado". Esta
 | `@nestjs/swagger` | Documentación de la API en `/docs` |
 | `socket.io` / `@nestjs/websockets` / `@nestjs/platform-socket.io` | Push de mensajes y presencia en vivo |
 | `@nestjs/config` | Carga y tipado de las variables de entorno |
-| `multer` | Recepción del adjunto (`diskStorage` en `messages.module.ts`). Llega como transitiva de `@nestjs/platform-express`, que es quien expone el `FileInterceptor` |
+| `multer` | Recepción de los archivos subidos (`diskStorage`, con una config por módulo: adjuntos en `messages.module.ts`, fotos de perfil en `users.module.ts`). Llega como transitiva de `@nestjs/platform-express`, que es quien expone el `FileInterceptor` |
 
 | Mobile | Para qué |
 |---|---|
@@ -33,7 +33,7 @@ La consigna permite bibliotecas externas "cuando su uso esté documentado". Esta
 | `zustand` | Estado global acotado: sesión y listado de chats |
 | `react-hook-form` + `zod` + `@hookform/resolvers` | Formularios con validación por esquema y error por campo |
 | `expo-secure-store` | Token de sesión en Keychain/Keystore, no en AsyncStorage |
-| `expo-image-picker` / `expo-document-picker` | Elegir la imagen o el archivo a adjuntar |
+| `expo-image-picker` / `expo-document-picker` | Elegir la imagen o el archivo a adjuntar en la conversación, y la foto de perfil (con recorte cuadrado) |
 | `socket.io-client` | Cliente del canal de tiempo real |
 | `@expo-google-fonts/inter` + `expo-font` | Tipografía del design system |
 | `@expo/vector-icons` | Íconos de la UI |
@@ -64,7 +64,7 @@ Cada proyecto tiene su `.env.example`: se copia a `.env` y se ajusta.
 | `JWT_SECRET` | Secreto para firmar los JWT. Sin definir (o con el valor de ejemplo del repo), el backend **genera uno random por proceso y lo avisa por log**: la app arranca, pero los tokens dejan de valer en cada reinicio. Definilo con `openssl rand -hex 32` | *(sin default — nunca cae a un valor conocido)* |
 | `JWT_EXPIRES_IN` | Vigencia del token | `1d` |
 | `CORS_ORIGIN` | Origen permitido para CORS | `*` |
-| `UPLOADS_DIR` | Carpeta donde se guardan los adjuntos, relativa a `backend/` | `uploads` |
+| `UPLOADS_DIR` | Carpeta donde se guardan los adjuntos de mensajes y las fotos de perfil (estas últimas en la subcarpeta `avatars/`), relativa a `backend/` | `uploads` |
 
 ### `mobile/.env`
 
@@ -97,7 +97,7 @@ cd mobile  && npm install && cp .env.example .env && cd ..
 docker compose up --build
 ```
 
-Levanta Mongo, seedea los datos de prueba y arranca la API en `http://localhost:3000`, en un solo comando. La app mobile se corre aparte igual que siempre (abajo).
+Levanta Mongo, seedea los datos de prueba y arranca la API en `http://localhost:3000`, con Swagger en `http://localhost:3000/docs`, en un solo comando. La app mobile se corre aparte igual que siempre (abajo).
 
 Probado corriendo: los dos contenedores quedan `healthy` y se verificó contra la API del contenedor el login, la subida y el servido de la foto de perfil y los adjuntos de mensajes. El backend corre como usuario sin privilegios (`node`), y las subidas viven en un volumen (`backend-uploads`) que sobrevive a los reinicios.
 
@@ -119,7 +119,23 @@ npx expo start          # QR para escanear con Expo Go
 npx expo start --web    # la misma app en el browser de la PC
 ```
 
-Detalle de cada lado en [`backend/README.md`](backend/README.md) (rutas, arquitectura, tests) y [`mobile/README.md`](mobile/README.md) (estructura, pantallas).
+Detalle de cada lado en [`backend/README.md`](backend/README.md) (arquitectura, rutas principales, tests) y [`mobile/README.md`](mobile/README.md) (estructura, pantallas).
+
+## Tests
+
+No hace falta ni Docker ni un Mongo corriendo: los del backend levantan su propio MongoDB en memoria.
+
+```bash
+cd backend
+npm test          # unitarios (Vitest)
+npm run test:e2e  # e2e: levanta la app completa contra un Mongo en memoria
+npm run lint      # oxlint
+
+cd ../mobile
+npm test          # Jest + React Native Testing Library
+```
+
+Última corrida verde (2026-09-28): **42 unitarios + 4 e2e** en backend, **34 en mobile** (8 suites), y `tsc --noEmit` limpio en los dos proyectos.
 
 ## Datos de prueba
 
@@ -148,6 +164,7 @@ Detalle completo, con contexto y alternativas descartadas, en [`docs/DECISIONS.m
 - **Sesión stateless sobre un único JWT**, sin refresh token ni sesiones en base: `POST /auth/login` devuelve el token (vigencia `JWT_EXPIRES_IN`, default `1d`), que viaja como `Bearer` en REST y en el handshake del socket, y en el dispositivo vive en `expo-secure-store` (Keychain/Keystore). Un 401 en cualquier request autenticada cierra la sesión sola y vuelve al login con el aviso de "tu sesión expiró". Contrapartida asumida y documentada: el logout no revoca el token del lado del servidor, sigue válido hasta vencer.
 - **Roles self-or-admin, con un único login para todos.** `PATCH` y `DELETE /users/:id` los resuelve un `RolesGuard` genérico: el dueño siempre puede actuar sobre lo suyo, y actuar sobre la cuenta de otro requiere rol `admin`. El rol nunca se acepta en el alta (nadie se autopromueve): el único admin nace en el seed. El gate del mobile es cosmético — el que manda está en el servidor.
 - **Adjuntos en disco** (`uploads/`), sin S3 ni base64 en la base. Los sirve un controller propio y no `useStaticAssets`, porque el archivo se guarda en disco con un UUID y el nombre original vive en la base: el controller lo consulta para poder mandarlo en el `Content-Disposition`. Ese header va siempre como `attachment`, que además de dar el nombre correcto evita que un `.html` o `.svg` subido como adjunto se ejecute en el origen de la API (XSS almacenado).
+- **La foto de perfil es un archivo subido, no una URL pegada a mano.** Tiene rutas propias (`POST`/`DELETE /users/:id/avatar`) y storage propio (`uploads/avatars/`), separado del de adjuntos: un adjunto pertenece a un mensaje y es inmutable, una foto pertenece a un usuario, se reemplaza y se borra con la cuenta. `avatarUrl` **no es escribible por el cliente** — lo arma el servidor, porque si no se podría apuntar a cualquier path del servidor o a un host arbitrario. Solo acepta png/jpeg/webp, nunca SVG: a diferencia de un adjunto, un avatar se sirve *inline* (es un `<Image>`), así que la defensa del `Content-Disposition` no aplica y la única que queda es no aceptar formatos ejecutables.
 - **Tiempo real como *push* sobre REST.** Socket.IO no lo pedía la consigna; se agregó porque un chat se prueba de verdad con dos clientes a la vez. El gateway **no acepta escrituras**: el mensaje se persiste por `POST /chats/:chatId/messages` y recién después se empuja a los participantes, así no hay un segundo camino de escritura que valide y autorice por separado. El handshake del socket usa el mismo JWT que el REST.
 - **Presencia derivada de la conexión del socket** (contando sesiones abiertas por usuario), no de un campo que el cliente actualice a mano.
 
