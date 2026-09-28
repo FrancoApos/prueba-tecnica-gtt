@@ -17,7 +17,7 @@ import { EmptyState, ErrorState } from '@/src/components/StateView';
 import { useChatsStore } from '@/src/store/chats';
 import { useSessionStore } from '@/src/store/session';
 import { showAlert, showChoice } from '@/src/utils/alert';
-import { colors, radii, spacing, typography } from '@/src/theme/tokens';
+import { colors, radii, sizes, spacing, typography } from '@/src/theme/tokens';
 import type { User } from '@/src/types/api';
 
 const PAGE_SIZE = 20;
@@ -64,7 +64,7 @@ export default function UsersScreen() {
    */
   const screenOptions = useMemo(
     () => ({
-      title: 'Users',
+      title: 'Usuarios',
       headerRight: isAdmin
         ? () => (
             <Pressable onPress={() => router.push('/(app)/new-user')} hitSlop={12} testID="new-user-button">
@@ -187,7 +187,7 @@ export default function UsersScreen() {
         </View>
       )}
 
-      {status === 'loading' && users.length === 0 && <SkeletonRows avatarSize={44} rowHeight={68} />}
+      {status === 'loading' && users.length === 0 && <SkeletonRows avatarSize={sizes.avatarUsersRow} rowHeight={sizes.usersRowHeight} />}
 
       {status === 'error' && (
         <ErrorState title="No pudimos cargar los usuarios" description={errorMessage ?? undefined} onRetry={load} />
@@ -215,7 +215,7 @@ export default function UsersScreen() {
                 disabled={isSelf || busyId !== null}
                 testID={`user-row-${item.id}`}
               >
-                <Avatar firstName={item.firstName} lastName={item.lastName} avatarUrl={item.avatarUrl} status={item.status} size={44} />
+                <Avatar firstName={item.firstName} lastName={item.lastName} avatarUrl={item.avatarUrl} status={item.status} size={sizes.avatarUsersRow} />
                 <View style={styles.info}>
                   <Text style={styles.name} numberOfLines={1}>
                     {item.firstName} {item.lastName} {isSelf && '(vos)'}

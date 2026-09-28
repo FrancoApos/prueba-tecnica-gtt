@@ -47,7 +47,7 @@ Corriendo `npm run seed` en `../backend` (ver [`backend/README.md`](../backend/R
 |---|---|---|
 | `ana@example.com` | `Sup3rSecret!` | `user` |
 | `bruno@example.com` | `Sup3rSecret!` | `user` |
-| `admin@example.com` | `Sup3rSecret!` | `admin` — ve los botones de editar/eliminar sobre *otros* usuarios en la tab "Users" |
+| `admin@example.com` | `Sup3rSecret!` | `admin` — ve los botones de editar/eliminar sobre *otros* usuarios en la tab "Usuarios" |
 
 ## Estructura
 
@@ -83,7 +83,7 @@ src/
 Detalle completo en [`../docs/DECISIONS.md`](../docs/DECISIONS.md).
 
 - **Sin pantalla de registro**: la consigna solo pide login. La creación de usuarios es responsabilidad del backend (`POST /users`, usado por el seed). Para poder iniciar una conversación nueva desde la app (necesario para que el flujo "listado → conversación" sea usable, no solo con chats preexistentes) se agregó una pantalla mínima de "Nuevo chat" que busca usuarios ya dados de alta y abre/crea el chat — no es una funcionalidad pedida explícitamente, pero es indispensable para poder demostrar el flujo completo. Se dispara desde un FAB en el listado de chats (siguiendo el diseño de Stitch).
-- **Módulo de Users (obligatorio, ver `docs/REQUIREMENTS.md`)**: tab "Users" con búsqueda + paginado del directorio. Tocar una fila inicia un chat con esa persona (mismo mecanismo que "Nuevo chat"). Editar/eliminar la cuenta de *otro* usuario solo se muestra si `session.user.role === 'admin'` — la autorización real la exige el backend (`RolesGuard`), esto solo evita ofrecer un botón que el servidor va a rechazar. Detalle en `docs/DECISIONS.md` ("Roles (self-or-admin)...").
+- **Módulo de Users (obligatorio, ver `docs/REQUIREMENTS.md`)**: tab "Usuarios" con búsqueda + paginado del directorio. Tocar una fila inicia un chat con esa persona (mismo mecanismo que "Nuevo chat"). Editar/eliminar la cuenta de *otro* usuario solo se muestra si `session.user.role === 'admin'` — la autorización real la exige el backend (`RolesGuard`), esto solo evita ofrecer un botón que el servidor va a rechazar. Detalle en `docs/DECISIONS.md` ("Roles (self-or-admin)...").
 - **Tiempo real por WebSocket**: al iniciar sesión (o al hidratar una guardada) el store abre un socket autenticado con el mismo JWT del REST. La conversación agrega los mensajes que llegan (deduplicados por `id`, porque el server también le reenvía el propio mensaje al remitente para sus otras sesiones) y el listado de chats actualiza preview y orden aunque estés en otra pantalla. Enviar sigue siendo el `POST` de siempre: el WS solo recibe.
 - **Presencia en vivo**: el header de la conversación y el punto del listado muestran si el contacto está conectado, y cambian solos cuando entra o sale (evento `presence:changed`). El estado sale del store de chats, así que las dos pantallas se actualizan con la misma suscripción.
 - **Sesión vencida → logout + redirect automático**: un JWT vencido/inválido se detecta por dos caminos — un `401` en cualquier request REST autenticado (`api/client.ts`), o el gateway rechazando el socket (`auth:error`, ver `realtime/socket.ts`) — y ambos confluyen en el mismo handler (`api/auth-events.ts`, para no crear un ciclo de imports entre el cliente HTTP y el store de Zustand). Ese handler limpia la sesión y `Stack.Protected` hace el resto: no hay navegación manual, el simple cambio de `status` a `signedOut` alcanza. La pantalla de login muestra "Tu sesión expiró..." solo en este caso, nunca en un logout manual.

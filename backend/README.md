@@ -97,7 +97,7 @@ npm run lint         # oxlint
 
 **Por qué `mongodb-memory-server`** (ambas suites lo usan): levanta un Mongo real — no un mock — en memoria durante la corrida, así que son **reproducibles en cualquier máquina o CI** sin depender de un Mongo externo corriendo ni de Docker. Un mock de Mongoose no hubiese detectado, por ejemplo, que un índice único falta o que una query con `$regex` mal armada rompe contra el motor real.
 
-**Unit tests** (35, `vitest run`):
+**Unit tests** (36, `vitest run`):
 - `AuthService` — login exitoso, password incorrecta, email inexistente (mismo mensaje genérico, no revela cuál falló)
 - `UsersService` — hash de password, que `role` nunca se cuela en el alta, email duplicado, escape de metacaracteres regex en el filtro de búsqueda
 - `ChatsService` — no chatear con uno mismo, contacto inexistente, creación idempotente (no duplica), acceso denegado a quien no participa
@@ -183,3 +183,5 @@ Detalle completo en [`docs/DECISIONS.md`](../docs/DECISIONS.md). Puntos clave:
 - El gateway mantiene el estado de las conexiones **en memoria**: con más de una instancia del backend haría falta el adapter de Redis de Socket.IO para que las rooms se compartan entre instancias.
 - Los adjuntos persisten en disco del contenedor: con `docker compose` quedan en un volumen; corriendo el contenedor suelto sin volumen, se pierden si se recrea.
 - No hay rate limiting ni endpoint para promover/degradar roles — fuera del alcance evaluado.
+- **La foto de perfil se setea por URL, no por subida de archivo**: no existe un endpoint de avatares. El camino sería un `POST /users/:id/avatar` propio, reusando el `diskStorage` de multer que ya está configurado para adjuntos — no se hizo porque atar el avatar al almacenamiento de adjuntos de mensajes lo dejaría colgando de un mensaje que se puede borrar. Ver `docs/DECISIONS.md`.
+- **El build de Docker no está verificado**: el daemon no respondía en la máquina de desarrollo. La imagen y el compose están escritos, pero `docker compose up --build` no se llegó a correr.

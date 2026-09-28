@@ -364,3 +364,31 @@ useSafeLayoutEffect(() => {
 **`Choice` ganó un `style?: 'destructive'` opcional** para no perder el rojo de iOS en las dos confirmaciones de borrado. La variante web lo declara y lo ignora, así las dos implementaciones mantienen la misma firma.
 
 **El "Cancelar" ya no se escribe a mano:** `showChoice` lo agrega siempre, así que cada confirmación declara solo su acción afirmativa. Es una llamada más corta y no se puede olvidar el botón de salida.
+
+## 2026-09-27 — La foto de perfil se edita por URL, no por subida de archivo
+
+**Contexto:** la consigna lista "foto o avatar" entre los campos del perfil y pide una pantalla de perfil editable. El campo existía en el modelo (`avatarUrl`), el `PATCH /users/:id` lo aceptaba y el `Avatar` lo mostraba, pero **no había forma de setearlo desde la app**: el único camino era Swagger. La auditoría lo marcó como parcial.
+
+**Decisión:** el formulario del perfil suma un campo "Foto de perfil (URL)". Vacío quita la foto y se vuelve a las iniciales.
+
+**Por qué no un selector de imagen con subida:** el backend no tiene endpoint de avatares. El único camino de subida que existe es el de adjuntos de mensajes, que guarda el archivo atado a un mensaje de un chat — reusarlo para un avatar significaría que la foto de perfil de alguien vive como adjunto de una conversación, y que borrar ese mensaje rompe el avatar. Hacerlo bien pedía un endpoint nuevo (`POST /users/:id/avatar`), su propio almacenamiento y su propia autorización: alcance que la consigna no pide y que no agrega nada a lo que se evalúa. El campo `avatarUrl` que el modelo ya tenía es una URL, y ahora la app puede escribirla igual que cualquier otro campo del perfil.
+
+**`null` explícito para borrar:** `UpdateUserDto` deja de heredar `avatarUrl` de `CreateUserDto` (`OmitType`) y lo declara propio como `string | null`, porque TypeScript no permite ensanchar el tipo de una propiedad heredada. Hacía falta distinguir tres casos que antes se confundían en dos: mandar una URL (cambiar), mandar `null` (quitar) y omitir la clave (no tocar). `@IsOptional()` de class-validator ignora los validadores cuando el valor es `null`, así que el `@IsUrl()` solo corre sobre una URL de verdad; el string vacío nunca llega al backend, la pantalla lo traduce a `null` antes de mandar.
+
+**Queda anotado como límite:** no se puede sacar una foto con la cámara ni elegirla de la galería desde el perfil. Si hiciera falta, el camino es el endpoint dedicado descrito arriba, reusando el `diskStorage` de multer que ya está configurado para adjuntos.
+
+## 2026-09-27 — Cierre de auditoría: consistencia de errores, tipos y documentación
+
+Seis ítems que la auditoría de cumplimiento marcó en parcial y se cerraron juntos, todos de bajo riesgo y sin cambio de comportamiento salvo el primero.
+
+**Los 401 ya no desentonan (P2.18).** Passport rechaza con su propio `UnauthorizedException`, cuyo cuerpo no trae campo `error` y cuyo mensaje es el string `"Unauthorized"`. El filtro global caía entonces al fallback `HttpStatus[401]`, que devuelve la **clave del enum** (`"UNAUTHORIZED"`), mientras el resto de la API decía `"Bad Request"` o `"Not Found"`. Un cliente que mostrara `error` veía dos formatos distintos según de dónde saliera el rechazo, y `"Unauthorized"` era el único texto en inglés de toda la API. Se arregló en los dos lugares que corresponde: `JwtAuthGuard` sobrescribe `handleRequest` para tirar su propio mensaje en español ("Necesitás iniciar sesión"), y el filtro convierte la clave del enum a la misma forma legible que usa Nest (`reasonPhrase`). El guard es quien sabe por qué rechazó; el filtro solo da formato.
+
+**`tsc --noEmit` limpio en los dos proyectos (P4.1).** `test/app.e2e-spec.ts` importaba `App` de `'supertest/types'`, un subpath que con `moduleResolution: nodenext` no resuelve porque supertest no lo declara en sus `exports` — venía del template de Nest, que usa la resolución clásica. Se reemplazó por `Server` de `node:http`, que es el tipo real que devuelve `getHttpServer()`.
+
+**Tokens en vez de literales (P4.4).** `users.tsx` dibujaba el avatar y la fila del directorio con `44` y `68` hardcodeados, mientras el listado de chats usaba `sizes.avatarListRow`/`sizes.chatRowHeight`. Se agregaron `avatarUsersRow` y `usersRowHeight` a `tokens.ts` — valores distintos a propósito (la fila de usuarios es más compacta: dos líneas cortas, no un preview de mensaje), pero ahora declarados como tokens en vez de sueltos en el componente.
+
+**Idioma consistente en la navegación (P3.14).** El tab y el header decían "Users" en una UI que por lo demás está en español. Pasan a "Usuarios". No se tocaron los nombres internos (rutas, archivos, testIDs), que siguen en inglés como el resto del código.
+
+**Ejemplos de Swagger donde faltaban (P5.5).** `create-chat.dto.ts` y `update-user.dto.ts` son cuerpos de request y no tenían ningún `example`, así que el "Try it out" arrancaba vacío; `query-users.dto.ts` tampoco tenía uno para `search`. `query-messages.dto.ts` se dejó como estaba: sus dos campos declaran `default`, que es lo que Swagger UI usa para prellenar, y un `example: 1` sobre un `default: 1` es ruido.
+
+**Tabla de dependencias completa (P4.9).** La consigna permite bibliotecas externas "cuando su uso esté documentado" y el README solo nombraba las principales. Ahora lista cada dependencia de runtime de los dos proyectos con para qué está. Dos merecen nota: `libphonenumber-js` no la importa nuestro código — la carga `class-validator` por dentro para resolver el `@IsPhoneNumber` del teléfono, y se declara explícita para no depender de que siga llegando como transitiva; y `multer`, del que se importa `diskStorage`, llega como transitiva de `@nestjs/platform-express`.

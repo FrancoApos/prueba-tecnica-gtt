@@ -11,6 +11,36 @@ Monorepo para la prueba técnica: aplicación móvil de chat con backend en **Ne
 | Tests | Vitest + `mongodb-memory-server` (backend), Jest + React Native Testing Library (mobile) |
 | Infra | Docker Compose (Mongo + backend, con seed automático) |
 
+### Dependencias externas y para qué está cada una
+
+La consigna permite bibliotecas externas "cuando su uso esté documentado". Estas son todas las de runtime que no vienen con el framework:
+
+| Backend | Para qué |
+|---|---|
+| `mongoose` / `@nestjs/mongoose` | ODM de MongoDB: schemas, índices y queries |
+| `@nestjs/jwt` + `passport` / `passport-jwt` / `@nestjs/passport` | Emisión y verificación del JWT, y el guard que protege las rutas |
+| `bcryptjs` | Hash de contraseñas. La variante JS pura evita el build nativo de `bcrypt`, que rompe el `npm ci` de la imagen Alpine |
+| `class-validator` / `class-transformer` | Validación y transformación de los DTOs vía `ValidationPipe` |
+| `libphonenumber-js` | Lo exige el `@IsPhoneNumber` que valida el teléfono del perfil: `class-validator` lo carga internamente (`libphonenumber-js/max`). Nuestro código no lo importa; está declarado explícito para no depender de que siga llegando como transitiva |
+| `@nestjs/swagger` | Documentación de la API en `/docs` |
+| `socket.io` / `@nestjs/websockets` / `@nestjs/platform-socket.io` | Push de mensajes y presencia en vivo |
+| `@nestjs/config` | Carga y tipado de las variables de entorno |
+| `multer` | Recepción del adjunto (`diskStorage` en `messages.module.ts`). Llega como transitiva de `@nestjs/platform-express`, que es quien expone el `FileInterceptor` |
+
+| Mobile | Para qué |
+|---|---|
+| `expo-router` | Navegación por archivos, incluido el gate de sesión (`Stack.Protected`) |
+| `zustand` | Estado global acotado: sesión y listado de chats |
+| `react-hook-form` + `zod` + `@hookform/resolvers` | Formularios con validación por esquema y error por campo |
+| `expo-secure-store` | Token de sesión en Keychain/Keystore, no en AsyncStorage |
+| `expo-image-picker` / `expo-document-picker` | Elegir la imagen o el archivo a adjuntar |
+| `socket.io-client` | Cliente del canal de tiempo real |
+| `@expo-google-fonts/inter` + `expo-font` | Tipografía del design system |
+| `@expo/vector-icons` | Íconos de la UI |
+| `react-native-safe-area-context` | Respetar notch y home indicator en la conversación |
+| `react-native-screens` / `react-native-gesture-handler` | Requeridos por expo-router para la navegación nativa |
+| `react-native-web` / `react-dom` / `@expo/metro-runtime` | Correr la misma app en el browser, que sirve de segundo cliente para probar el chat en vivo |
+
 ## Requisitos
 
 - **Node.js 24+** y npm.
@@ -99,7 +129,7 @@ Detalle de cada lado en [`backend/README.md`](backend/README.md) (rutas, arquite
 | `bruno@example.com` | `Sup3rSecret!` | `user` |
 | `admin@example.com` | `Sup3rSecret!` | `admin` |
 
-Logueate con dos de ellos en dos clientes distintos (por ejemplo `ana` en el celular y `bruno` en el browser) para ver los mensajes y la presencia actualizándose en vivo. Con `admin` aparecen además las acciones de editar y eliminar la cuenta de *otro* usuario en el tab **Users**.
+Logueate con dos de ellos en dos clientes distintos (por ejemplo `ana` en el celular y `bruno` en el browser) para ver los mensajes y la presencia actualizándose en vivo. Con `admin` aparecen además las acciones de editar y eliminar la cuenta de *otro* usuario en el tab **Usuarios**.
 
 Detalle del seed en [`backend/README.md`](backend/README.md#datos-de-prueba-seed).
 
@@ -149,4 +179,4 @@ Detalle completo, con contexto y alternativas descartadas, en [`docs/DECISIONS.m
 
 ## Estado del proyecto
 
-Ver [`docs/PROGRESS.md`](docs/PROGRESS.md) para el detalle. En resumen: **backend y mobile funcionales de punta a punta** — login, listado de chats, directorio de usuarios, conversación (texto + adjuntos, con mensajes y presencia en **tiempo real** vía WebSocket) y perfil, contra la API real. Verificado en un iPhone físico contra el backend corriendo en la LAN. Queda pendiente probar el build de Docker, que no se pudo correr en el entorno de desarrollo por no tener Docker disponible.
+Ver [`docs/PROGRESS.md`](docs/PROGRESS.md) para el detalle. En resumen: **backend y mobile funcionales de punta a punta** — login, listado de chats, directorio de usuarios, conversación (texto + adjuntos, con mensajes y presencia en **tiempo real** vía WebSocket) y perfil, contra la API real. Verificado en un iPhone físico contra el backend corriendo en la LAN. **Único pendiente de verificación:** el build de Docker. El `Dockerfile` y el `docker-compose.yml` están escritos y revisados, pero no se pudo ejecutar `docker compose up --build` en el entorno de desarrollo: el cliente de Docker está instalado (v29.8.0) pero su daemon no responde en esta máquina. Todo lo demás se validó corriendo: la API contra un Mongo real, la app en un iPhone físico, y las tres suites de tests.

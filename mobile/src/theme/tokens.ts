@@ -146,8 +146,12 @@ export const sizes = {
    * documenta para contextos secundarios de lista (40px). */
   avatarSearchRow: 40,
   avatarProfile: 72,
+  /** Directorio de usuarios: fila más compacta que la de chats, porque
+   * muestra dos líneas de texto cortas (nombre + email) y no un preview. */
+  avatarUsersRow: 44,
   statusDot: 14,
   chatRowHeight: 76,
+  usersRowHeight: 68,
   controlHeight: 52,
   iconButtonHitArea: 44,
   sendButton: 40,

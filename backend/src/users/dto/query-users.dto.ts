@@ -12,7 +12,10 @@ const SORTABLE_FIELDS = ['firstName', 'lastName', 'email', 'createdAt', 'lastSee
 type SortableField = (typeof SORTABLE_FIELDS)[number];
 
 export class QueryUsersDto {
-  @ApiPropertyOptional({ description: 'Busca por nombre, apellido o email' })
+  @ApiPropertyOptional({
+    description: 'Busca por nombre, apellido o email (parcial, insensible a mayúsculas)',
+    example: 'garcia',
+  })
   @IsOptional()
   @IsString()
   search?: string;

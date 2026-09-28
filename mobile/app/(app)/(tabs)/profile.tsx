@@ -28,6 +28,17 @@ const schema = z.object({
   lastName: z.string().min(1, 'Requerido'),
   birthDate: birthDateField,
   phone: z.string().min(6, 'Teléfono inválido'),
+  /**
+   * El backend guarda una URL (`@IsUrl()`), no un archivo: no hay endpoint de
+   * subida de avatar, así que el campo es la URL de la foto. Vacío es válido
+   * y significa "sin foto" — ver `onSubmit`, que lo traduce a `null`.
+   */
+  avatarUrl: z
+    .string()
+    .trim()
+    .refine((value) => value === '' || /^https?:\/\/\S+$/i.test(value), {
+      message: 'Tiene que ser una URL que empiece con http:// o https://',
+    }),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -51,6 +62,7 @@ export default function ProfileScreen() {
       lastName: user?.lastName ?? '',
       birthDate: user ? toDisplayDate(user.birthDate) : '',
       phone: user?.phone ?? '',
+      avatarUrl: user?.avatarUrl ?? '',
     },
   });
 
@@ -61,7 +73,13 @@ export default function ProfileScreen() {
   const onSubmit = async (values: FormValues) => {
     setFeedback(null);
     try {
-      const updated = await updateUser(user.id, { ...values, birthDate: toApiDate(values.birthDate) });
+      const updated = await updateUser(user.id, {
+        ...values,
+        birthDate: toApiDate(values.birthDate),
+        // Vacío es "quitar la foto": el backend distingue `null` (borrar) de
+        // omitir la clave (no tocar), y `''` no pasaría el `@IsUrl()`.
+        avatarUrl: values.avatarUrl === '' ? null : values.avatarUrl,
+      });
       updateSessionUser(updated);
       setFeedback({ type: 'success', text: 'Perfil actualizado' });
     } catch (err) {
@@ -190,6 +208,23 @@ export default function ProfileScreen() {
                 onChangeText={field.onChange}
                 onBlur={field.onBlur}
                 error={errors.phone?.message}
+              />
+            )}
+          />
+          <Controller
+            control={control}
+            name="avatarUrl"
+            render={({ field }) => (
+              <FormTextInput
+                label="Foto de perfil (URL)"
+                placeholder="https://… — vacío para quitarla"
+                autoCapitalize="none"
+                keyboardType="url"
+                value={field.value}
+                onChangeText={field.onChange}
+                onBlur={field.onBlur}
+                error={errors.avatarUrl?.message}
+                testID="avatar-url-input"
               />
             )}
           />

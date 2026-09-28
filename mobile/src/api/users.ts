@@ -19,7 +19,8 @@ export interface UpdateUserInput {
   lastName?: string;
   birthDate?: string;
   phone?: string;
-  avatarUrl?: string;
+  /** `null` quita la foto actual; omitir la clave la deja como está. */
+  avatarUrl?: string | null;
   status?: ConnectionStatus;
 }
 
