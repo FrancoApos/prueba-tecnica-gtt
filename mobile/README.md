@@ -8,7 +8,7 @@ App en **React Native + TypeScript** (Expo, Expo Router) para la prueba técnica
 - **Zustand** — estado de sesión (`src/store/session.ts`) y de la lista de chats (`src/store/chats.ts`)
 - **react-hook-form + zod** — formularios y validación (login, perfil)
 - **expo-secure-store** — persistencia del JWT y del usuario
-- **expo-image-picker + expo-document-picker** — adjuntar imagen o archivo a un mensaje
+- **expo-image-picker + expo-document-picker** — adjuntar imagen o archivo a un mensaje, y elegir la foto de perfil
 - **Jest + jest-expo + React Native Testing Library** — tests
 
 ## Requisitos
@@ -100,10 +100,12 @@ npm run typecheck    # tsc --noEmit
 npm run lint          # expo lint
 ```
 
-**Unit/component tests** (31, `__tests__/`):
+**Unit/component tests** (34, `__tests__/`):
+- Foto de perfil — que se suba al elegirla (sin pasar por "Guardar cambios"), que no se suba nada si se deniega el permiso a la galería, y que "Quitar foto" aparezca solo si hay una
 - Utilidades de formateo (`getInitials`, `formatRelativeTimestamp`, `formatDayLabel`)
 - Store de sesión — login/logout/hidratación desde el almacén seguro, que abra/cierre el canal de tiempo real, y que un 401 (no un logout manual) muestre el mensaje de sesión vencida
 - `useMessages` — el envío optimista: el mensaje aparece de inmediato (`pending`) y se confirma con la respuesta del server, o se marca `failed` (sin revertirse) si la request rechaza
 - Formulario de login — validaciones, submit exitoso, error de credenciales inválidas (separado en dos archivos, ver nota abajo)
+- Hoja de ordenamiento del directorio de Users — la selección queda en borrador hasta aplicar, y cada opción mapea al par `sortBy`/`sortOrder` que espera el backend
 
 > Nota: vas a ver algunos `console.error` de "overlapping act() calls" al correr los tests de `sign-in`. Es ruido de una incompatibilidad conocida entre esta combinación específica de versiones (React 19.2/Expo SDK 57/RNTL 14, todas muy recientes) — los tests pasan igual; se investigó y se aisló cada escenario en su propio archivo para evitar que ese bug de interop hiciera fallar un test que en aislamiento pasa perfecto.

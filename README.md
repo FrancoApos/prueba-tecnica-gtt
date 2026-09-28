@@ -111,13 +111,40 @@ npm run seed        # carga los datos de prueba (hace build + seed)
 npm run start:dev   # API en http://localhost:3000, Swagger en /docs
 ```
 
-**Mobile:**
+**Mobile** — con el backend ya corriendo:
 
 ```bash
 cd mobile
-npx expo start          # QR para escanear con Expo Go
-npx expo start --web    # la misma app en el browser de la PC
+npx expo start
 ```
+
+Eso levanta Metro y muestra un **QR** en la terminal. A partir de ahí, según dónde quieras abrirla:
+
+#### En un iPhone (o Android) físico, con Expo Go
+
+1. Instalá **Expo Go** ([iOS](https://apps.apple.com/app/expo-go/id982107779) / [Android](https://play.google.com/store/apps/details?id=host.exp.exponent)).
+2. Poné el celular y la PC en la **misma red Wi-Fi**.
+3. En `mobile/.env`, `EXPO_PUBLIC_API_URL` tiene que ser la **IP de LAN de la PC**, no `localhost` — para el celular, `localhost` es él mismo. Para averiguarla: `ipconfig` en Windows (buscá "Dirección IPv4", algo como `192.168.x.x`) o `ifconfig | grep inet` en macOS/Linux. Queda, por ejemplo, `EXPO_PUBLIC_API_URL=http://192.168.1.100:3000`.
+4. Si cambiaste el `.env`, **reiniciá `expo start`**: Expo embebe las `EXPO_PUBLIC_*` en el bundle al arrancar.
+5. Escaneá el QR con la **app de Cámara** (iOS) o desde **Expo Go** (Android).
+
+> Si la app abre pero no puede conectar con la API, probá desde el browser del celular `http://<IP-de-tu-PC>:3000/health`. Si desde la PC responde y desde el celular no, casi siempre es el **Firewall de Windows** bloqueando conexiones entrantes al puerto 3000.
+
+#### En el browser de la PC
+
+Con `expo start` corriendo, apretá **`w`**. O directo:
+
+```bash
+npx expo start --web
+```
+
+Acá `EXPO_PUBLIC_API_URL=http://localhost:3000` alcanza. Sirve como **segundo cliente** para ver el chat y la presencia en vivo (iPhone ↔ PC) sin instalar un emulador. No es el target de entrega — la sesión cae a `localStorage` en vez del almacén seguro del dispositivo y los diálogos nativos degradan a los del browser.
+
+> Si vas a usar los dos a la vez, poné la **IP de LAN en ambos**: el browser también la alcanza, y así no hay dos configuraciones distintas que puedan fallar por separado.
+
+#### En un emulador
+
+Con `expo start` corriendo: **`a`** para un emulador de Android (usa `http://10.0.2.2:3000`), **`i`** para el simulador de iOS (requiere macOS + Xcode; en Windows no existe, para iPhone usá Expo Go).
 
 Detalle de cada lado en [`backend/README.md`](backend/README.md) (arquitectura, rutas principales, tests) y [`mobile/README.md`](mobile/README.md) (estructura, pantallas).
 
