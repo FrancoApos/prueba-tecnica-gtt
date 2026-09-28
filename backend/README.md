@@ -11,7 +11,7 @@ Ver también: [modelado de datos](../docs/DATA_MODEL.md) y [decisiones técnicas
 - **class-validator + class-transformer** — DTOs, `ValidationPipe` global (`whitelist` + `forbidNonWhitelisted`)
 - **bcryptjs** — hash de contraseñas (nunca se persisten ni se devuelven en texto plano)
 - **Swagger (`@nestjs/swagger`)** — documentación interactiva en `/docs`, con ejemplos reales en cada DTO
-- **Multer + diskStorage** — adjuntos (imagen o archivo) servidos en `/uploads/*` por `AttachmentsController`
+- **Multer + diskStorage** — adjuntos de mensajes (imagen o archivo) servidos por `AttachmentsController`, y fotos de perfil en `uploads/avatars/` servidas por `AvatarsController`
 - **Socket.IO (`@nestjs/websockets`)** — push de mensajes nuevos en tiempo real
 - **Vitest + `mongodb-memory-server`** — tests unitarios y e2e reproducibles sin depender de un Mongo externo
 
@@ -31,7 +31,7 @@ Copiá `.env.example` a `.env` y ajustá lo necesario:
 | `JWT_SECRET` | Secreto para firmar los JWT | *(cambiar en cualquier entorno real)* |
 | `JWT_EXPIRES_IN` | Vigencia del token | `1d` |
 | `CORS_ORIGIN` | Origen permitido para CORS | `*` |
-| `UPLOADS_DIR` | Carpeta donde se guardan los adjuntos | `uploads` |
+| `UPLOADS_DIR` | Carpeta donde se guardan los adjuntos y las fotos de perfil (estas últimas en su subcarpeta `avatars/`) | `uploads` |
 
 ## Instalación
 
@@ -84,7 +84,9 @@ docker run -p 3000:3000 -e MONGODB_URI=... -e JWT_SECRET=... chat-app-backend
 docker compose up --build
 ```
 
-`docker-compose.yml` (en la raíz del repo) levanta Mongo y el backend juntos, con un volumen para persistir los adjuntos entre reinicios del contenedor. El backend espera a que Mongo esté realmente listo (`healthcheck`, no solo "el contenedor arrancó") y **corre el seed automáticamente antes de levantar el server** — con un solo `docker compose up --build` la API queda arriba con las 3 cuentas de prueba ya cargadas, sin pasos manuales. Esto re-siembra la base en cada reinicio del contenedor (a propósito, para un entorno de evaluación/demo con estado conocido — no es el comportamiento que se querría en producción).
+`docker-compose.yml` (en la raíz del repo) levanta Mongo y el backend juntos, con un volumen para persistir los adjuntos entre reinicios del contenedor. El backend espera a que Mongo esté realmente listo (`healthcheck`, no solo "el contenedor arrancó") y **corre el seed automáticamente antes de levantar el server** — con un solo `docker compose up --build` la API queda arriba con las 3 cuentas de prueba ya cargadas, sin pasos manuales. Esto re-siembra la base en cada reinicio del contenedor (a propósito, para un entorno de evaluación/demo con estado conocido — no es el comportamiento que se querría en producción). El re-seed también vacía `uploads/`, para que no queden archivos que ya nadie referencia.
+
+**Verificado corriendo** (2026-09-28): build, arranque, contenedor `healthy`, y contra la API del contenedor — login, subida/servido/borrado de la foto de perfil, rechazo de un formato no permitido, y subida/descarga de un adjunto. El proceso corre como el usuario **`node`, no como root**, y la carpeta de subidas se crea en la imagen con ese dueño para que el volumen la herede (si no, el volumen nacería de root y el proceso no podría escribir). Si venís de una versión vieja de la imagen y ves errores de permisos sobre `uploads/`, `docker compose down -v` recrea el volumen.
 
 ## Tests
 
@@ -139,6 +141,10 @@ Cada módulo sigue el mismo patrón: `schema` (Mongoose) → `dto` (class-valida
 | GET | `/users/:id` | Sí | Detalle de un usuario |
 | PATCH | `/users/:id` | Sí (dueño o admin) | Edita un perfil — el propio siempre, el de otro solo con rol `admin` |
 | DELETE | `/users/:id` | Sí (dueño o admin) | Borra una cuenta — la propia siempre, la de otro solo con rol `admin` |
+| POST | `/users/:id/avatar` | Sí (dueño o admin) | Sube o reemplaza la foto de perfil (`multipart/form-data`, campo `file`) |
+| DELETE | `/users/:id/avatar` | Sí (dueño o admin) | Quita la foto de perfil y borra el archivo |
+| GET | `/uploads/avatars/:storedName` | No | Sirve una foto de perfil (inline) |
+| GET | `/uploads/:storedName` | No | Descarga el adjunto de un mensaje, con su nombre original |
 | POST | `/auth/login` | No | Login, devuelve `accessToken` + usuario |
 | POST | `/chats` | Sí | Abre (o reutiliza) el chat con `participantId` |
 | GET | `/chats` | Sí | Chats del usuario autenticado, con contacto y último mensaje |
@@ -175,6 +181,7 @@ Detalle completo en [`docs/DECISIONS.md`](../docs/DECISIONS.md). Puntos clave:
 - **Tiempo real como *push* sobre REST**: el gateway de Socket.IO no acepta escrituras; el mensaje se persiste por HTTP y recién entonces se empuja a los participantes. Evita duplicar validación/autorización en un segundo camino de escritura.
 - **Chats solo 1 a 1** (no grupales) — ver `docs/DECISIONS.md` y `docs/DATA_MODEL.md`.
 - **Adjuntos** se guardan en disco (`uploads/`) y se sirven en `/uploads/*` por `AttachmentsController` y no por el servidor de estáticos — sin S3 ni base64. El archivo queda en disco con un UUID como nombre, así que hace falta consultar la base para devolverlo con su nombre original en el `Content-Disposition`; ese header va siempre como `attachment`, que también evita que un `.html`/`.svg` subido como adjunto se ejecute en el origen de la API. Ver justificación en `docs/DECISIONS.md`.
+- **La foto de perfil es un archivo subido, no una URL**: `POST /users/:id/avatar` la guarda en `uploads/avatars/` y `avatarUrl` **no es escribible por el cliente** (no está en `CreateUserDto` ni en `UpdateUserDto`) — el valor lo arma el servidor. Solo acepta png/jpeg/webp: **nunca SVG**, porque a diferencia de un adjunto un avatar se sirve inline y un SVG con `<script>` sería XSS almacenado en el origen de la API. El archivo anterior se borra al reemplazar la foto, al quitarla, al borrar la cuenta y al re-seedear. Ver `docs/DECISIONS.md`.
 
 ## Alcance pendiente / conocido
 
@@ -183,5 +190,4 @@ Detalle completo en [`docs/DECISIONS.md`](../docs/DECISIONS.md). Puntos clave:
 - El gateway mantiene el estado de las conexiones **en memoria**: con más de una instancia del backend haría falta el adapter de Redis de Socket.IO para que las rooms se compartan entre instancias.
 - Los adjuntos persisten en disco del contenedor: con `docker compose` quedan en un volumen; corriendo el contenedor suelto sin volumen, se pierden si se recrea.
 - No hay rate limiting ni endpoint para promover/degradar roles — fuera del alcance evaluado.
-- **La foto de perfil se setea por URL, no por subida de archivo**: no existe un endpoint de avatares. El camino sería un `POST /users/:id/avatar` propio, reusando el `diskStorage` de multer que ya está configurado para adjuntos — no se hizo porque atar el avatar al almacenamiento de adjuntos de mensajes lo dejaría colgando de un mensaje que se puede borrar. Ver `docs/DECISIONS.md`.
-- **El build de Docker no está verificado**: el daemon no respondía en la máquina de desarrollo. La imagen y el compose están escritos, pero `docker compose up --build` no se llegó a correr.
+- Las fotos de perfil se sirven desde una URL pública con un UUID aleatorio, sin token: `<Image>` no puede mandar el header `Authorization`. Lo único que protege la foto es que la URL no sea adivinable — mismo límite que los adjuntos, anotado como tal y no como decisión de seguridad.

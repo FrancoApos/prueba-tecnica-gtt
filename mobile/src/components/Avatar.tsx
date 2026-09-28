@@ -1,4 +1,5 @@
 import { Image, StyleSheet, Text, View } from 'react-native';
+import { resolveAssetUrl } from '@/src/config';
 import { colors, sizes } from '@/src/theme/tokens';
 import { getInitials } from '@/src/utils/format';
 import type { ConnectionStatus } from '@/src/types/api';
@@ -17,7 +18,11 @@ export function Avatar({ firstName, lastName, avatarUrl, status, size = sizes.av
   return (
     <View style={[styles.container, dimensionStyle]}>
       {avatarUrl ? (
-        <Image source={{ uri: avatarUrl }} style={[styles.image, dimensionStyle]} />
+        // El backend guarda la foto como path relativo (`/uploads/avatars/…`),
+        // igual que los adjuntos; `resolveAssetUrl` le antepone el host de la
+        // API y deja pasar tal cual una URI local del picker (vista previa
+        // optimista antes de que termine la subida).
+        <Image source={{ uri: resolveAssetUrl(avatarUrl) }} style={[styles.image, dimensionStyle]} />
       ) : (
         <View style={[styles.fallback, dimensionStyle]}>
           <Text style={[styles.initials, { fontSize: size * 0.38 }]}>{getInitials(firstName, lastName)}</Text>

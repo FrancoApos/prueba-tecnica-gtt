@@ -99,6 +99,8 @@ docker compose up --build
 
 Levanta Mongo, seedea los datos de prueba y arranca la API en `http://localhost:3000`, en un solo comando. La app mobile se corre aparte igual que siempre (abajo).
 
+Probado corriendo: los dos contenedores quedan `healthy` y se verificó contra la API del contenedor el login, la subida y el servido de la foto de perfil y los adjuntos de mensajes. El backend corre como usuario sin privilegios (`node`), y las subidas viven en un volumen (`backend-uploads`) que sobrevive a los reinicios.
+
 ### A mano
 
 **Backend** — necesita un Mongo alcanzable en `MONGODB_URI`:
@@ -179,4 +181,4 @@ Detalle completo, con contexto y alternativas descartadas, en [`docs/DECISIONS.m
 
 ## Estado del proyecto
 
-Ver [`docs/PROGRESS.md`](docs/PROGRESS.md) para el detalle. En resumen: **backend y mobile funcionales de punta a punta** — login, listado de chats, directorio de usuarios, conversación (texto + adjuntos, con mensajes y presencia en **tiempo real** vía WebSocket) y perfil, contra la API real. Verificado en un iPhone físico contra el backend corriendo en la LAN. **Único pendiente de verificación:** el build de Docker. El `Dockerfile` y el `docker-compose.yml` están escritos y revisados, pero no se pudo ejecutar `docker compose up --build` en el entorno de desarrollo: el cliente de Docker está instalado (v29.8.0) pero su daemon no responde en esta máquina. Todo lo demás se validó corriendo: la API contra un Mongo real, la app en un iPhone físico, y las tres suites de tests.
+Ver [`docs/PROGRESS.md`](docs/PROGRESS.md) para el detalle. En resumen: **backend y mobile funcionales de punta a punta** — login, listado de chats, directorio de usuarios, conversación (texto + adjuntos, con mensajes y presencia en **tiempo real** vía WebSocket) y perfil (incluida la **foto de perfil, que se elige de la galería y se sube como archivo**), contra la API real. Verificado en un iPhone físico contra el backend corriendo en la LAN, y el stack completo verificado corriendo en Docker: `docker compose up --build` levanta Mongo + la API con datos de prueba en un comando, y se probaron contra el contenedor el login, la foto de perfil y los adjuntos. Todo lo demás se validó corriendo: la API contra un Mongo real, la app en un iPhone físico, y las tres suites de tests.

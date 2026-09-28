@@ -1,3 +1,6 @@
+import { readdir, rm } from 'node:fs/promises';
+import { join } from 'node:path';
+import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { getModelToken } from '@nestjs/mongoose';
 import type { Model } from 'mongoose';
@@ -28,6 +31,20 @@ async function seed() {
   const messageModel = app.get<Model<MessageDocument>>(getModelToken(Message.name));
 
   await Promise.all([userModel.deleteMany({}), chatModel.deleteMany({}), messageModel.deleteMany({})]);
+
+  // Los archivos subidos (adjuntos de mensajes y fotos de perfil) se borran
+  // junto con los documentos que los referenciaban: si no, cada re-seed deja
+  // en disco un archivo más que ya nadie puede pedir. Importa sobre todo en
+  // Docker, donde `docker compose up` re-seedea en cada reinicio del
+  // contenedor y `uploads/` es un volumen que sobrevive.
+  //
+  // Se vacía el contenido en vez de borrar la carpeta: en Docker `uploads/` es
+  // el punto de montaje de un volumen y no se puede eliminar desde adentro
+  // (EBUSY). Las subcarpetas que hagan falta las vuelve a crear `setup-app.ts`
+  // al arrancar el server.
+  const uploadsDir = join(process.cwd(), app.get(ConfigService).get<string>('uploadsDir') ?? 'uploads');
+  const uploaded = await readdir(uploadsDir).catch(() => []);
+  await Promise.all(uploaded.map((entry) => rm(join(uploadsDir, entry), { recursive: true, force: true })));
 
   const ana = await usersService.create({
     email: 'ana@example.com',

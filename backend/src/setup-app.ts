@@ -1,9 +1,11 @@
 import { mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
+import { AVATARS_SUBDIR } from './users/avatar-storage.js';
 
 /**
  * Configuración compartida entre `main.ts` (runtime real) y los tests e2e,
@@ -13,12 +15,13 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
 export function setupApp(app: NestExpressApplication): void {
   const configService = app.get(ConfigService);
 
-  // Se crea la carpeta de adjuntos por si no existe: multer escribe acá
-  // (ver `messages.module.ts`) y falla si el destino no está. Los archivos NO
-  // se sirven como estáticos — los sirve `AttachmentsController`, que es el que
-  // sabe el nombre original de cada uno (ver el comentario de esa clase).
+  // Se crean las carpetas de subidas por si no existen: multer escribe acá
+  // (ver `messages.module.ts` para los adjuntos y `users.module.ts` para las
+  // fotos de perfil) y falla si el destino no está. Los archivos NO se sirven
+  // como estáticos — los sirven `AttachmentsController` y `AvatarsController`,
+  // que son los que saben a qué documento pertenece cada uno.
   const uploadsDir = configService.get<string>('uploadsDir') ?? 'uploads';
-  mkdirSync(uploadsDir, { recursive: true });
+  mkdirSync(join(uploadsDir, AVATARS_SUBDIR), { recursive: true });
 
   app.useGlobalPipes(
     new ValidationPipe({

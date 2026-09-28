@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -9,16 +10,22 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
   ApiCreatedResponse,
   ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { AVATAR_ACCEPTED_MIMES } from '../avatar-storage.js';
 import { PaginatedResultDto } from '../../common/dto/paginated-result.dto.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { Roles } from '../../common/decorators/roles.decorator.js';
@@ -67,12 +74,50 @@ export class UsersController {
   @Roles('admin')
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Edita un perfil (nombre, teléfono, avatar, estado de conexión, etc.)',
-    description: 'Cualquiera puede editar el propio perfil. Editar el de otro usuario requiere rol "admin".',
+    summary: 'Edita un perfil (nombre, apellido, fecha de nacimiento, teléfono, estado de conexión)',
+    description:
+      'Cualquiera puede editar el propio perfil. Editar el de otro usuario requiere rol "admin". La foto va por `POST /users/:id/avatar`.',
   })
   @ApiOkResponse({ description: 'Usuario actualizado', type: UserResponseDto })
   update(@Param('id') id: string, @Body() dto: UpdateUserDto): Promise<UserResponseDto> {
     return this.usersService.update(id, dto);
+  }
+
+  /**
+   * Mismo control de acceso que `PATCH`/`DELETE /users/:id`: el `RolesGuard`
+   * lee el `:id` de la ruta, así que "cada quien cambia su propia foto, y un
+   * admin la de cualquiera" sale sin lógica extra.
+   */
+  @Post(':id/avatar')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Sube (o reemplaza) la foto de perfil',
+    description: `Formatos aceptados: ${AVATAR_ACCEPTED_MIMES.join(', ')}. La foto anterior se borra del disco. Cualquiera puede cambiar la propia; la de otro usuario requiere rol "admin".`,
+  })
+  @ApiBody({ schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } } })
+  @ApiOkResponse({ description: 'Usuario con la nueva `avatarUrl`', type: UserResponseDto })
+  setAvatar(@Param('id') id: string, @UploadedFile() file?: Express.Multer.File): Promise<UserResponseDto> {
+    if (!file) {
+      throw new BadRequestException('Falta el archivo de la foto (campo "file" del form-data)');
+    }
+    return this.usersService.setAvatar(id, file);
+  }
+
+  @Delete(':id/avatar')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Quita la foto de perfil (vuelve a las iniciales)',
+    description: 'Borra el archivo del disco y deja `avatarUrl` en `null`.',
+  })
+  @ApiOkResponse({ description: 'Usuario sin foto', type: UserResponseDto })
+  removeAvatar(@Param('id') id: string): Promise<UserResponseDto> {
+    return this.usersService.removeAvatar(id);
   }
 
   @Delete(':id')

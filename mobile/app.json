@@ -31,7 +31,7 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "La app necesita acceso a tus fotos para adjuntarlas en un chat."
+          "photosPermission": "La app necesita acceso a tus fotos para adjuntarlas en un chat y para tu foto de perfil."
         }
       ],
       "expo-font"

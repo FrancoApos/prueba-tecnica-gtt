@@ -114,6 +114,112 @@ describe('Chat app (e2e)', () => {
     await request(server).get('/uploads/no-existe.docx').expect(404);
   });
 
+  it('sube, sirve y quita la foto de perfil, y no deja que otro la cambie', async () => {
+    const server = app.getHttpServer();
+
+    // PNG real de 1x1 (el más chico válido): multer confía en el content-type
+    // de la parte, pero el archivo que queda en disco tiene que poder servirse.
+    const png = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+      'base64',
+    );
+
+    const fabi = await request(server)
+      .post('/users')
+      .send({
+        email: 'fabi.e2e@example.com',
+        password: 'Sup3rSecret!',
+        firstName: 'Fabiana',
+        lastName: 'Foto',
+        birthDate: '1991-02-02',
+        phone: '+5491166778899',
+      })
+      .expect(201);
+    expect(fabi.body.avatarUrl).toBeNull();
+
+    const login = await request(server)
+      .post('/auth/login')
+      .send({ email: 'fabi.e2e@example.com', password: 'Sup3rSecret!' })
+      .expect(200);
+    const token = login.body.accessToken as string;
+
+    // Sin token no se puede tocar la foto de nadie.
+    await request(server).post(`/users/${fabi.body.id}/avatar`).attach('file', png, 'yo.png').expect(401);
+
+    const subida = await request(server)
+      .post(`/users/${fabi.body.id}/avatar`)
+      .set('Authorization', `Bearer ${token}`)
+      .attach('file', png, { filename: 'yo.png', contentType: 'image/png' })
+      .expect(201);
+
+    // La URL la arma el servidor: UUID en disco, nunca el nombre que mandó el
+    // cliente (que podría venir con `../` o con una extensión engañosa).
+    expect(subida.body.avatarUrl).toMatch(/^\/uploads\/avatars\/[0-9a-f-]{36}\.png$/);
+
+    // Y se sirve inline (es un <Image>), no como descarga.
+    const foto = await request(server).get(subida.body.avatarUrl).responseType('blob').expect(200);
+    expect(foto.headers['content-type']).toContain('image/png');
+    expect(foto.headers['x-content-type-options']).toBe('nosniff');
+    expect(foto.headers['content-disposition']).toBeUndefined();
+    expect(foto.body.equals(png)).toBe(true);
+
+    // Formato fuera de la allowlist -> 415. El SVG es el caso que importa: es
+    // una imagen, pero puede traer script y acá se renderiza inline.
+    await request(server)
+      .post(`/users/${fabi.body.id}/avatar`)
+      .set('Authorization', `Bearer ${token}`)
+      .attach('file', Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script/></svg>'), {
+        filename: 'yo.svg',
+        contentType: 'image/svg+xml',
+      })
+      .expect(415);
+
+    // Reemplazarla borra la anterior: la URL vieja deja de servir.
+    const reemplazo = await request(server)
+      .post(`/users/${fabi.body.id}/avatar`)
+      .set('Authorization', `Bearer ${token}`)
+      .attach('file', png, { filename: 'otra.png', contentType: 'image/png' })
+      .expect(201);
+    expect(reemplazo.body.avatarUrl).not.toBe(subida.body.avatarUrl);
+    await request(server).get(subida.body.avatarUrl).expect(404);
+
+    // La foto de otro usuario está fuera de alcance sin rol admin.
+    const gonzalo = await request(server)
+      .post('/users')
+      .send({
+        email: 'gonzalo.e2e@example.com',
+        password: 'Sup3rSecret!',
+        firstName: 'Gonzalo',
+        lastName: 'Foto',
+        birthDate: '1989-09-09',
+        phone: '+5491177889900',
+      })
+      .expect(201);
+    const gonzaloLogin = await request(server)
+      .post('/auth/login')
+      .send({ email: 'gonzalo.e2e@example.com', password: 'Sup3rSecret!' })
+      .expect(200);
+
+    await request(server)
+      .post(`/users/${fabi.body.id}/avatar`)
+      .set('Authorization', `Bearer ${gonzaloLogin.body.accessToken}`)
+      .attach('file', png, { filename: 'ajena.png', contentType: 'image/png' })
+      .expect(403);
+    await request(server)
+      .delete(`/users/${fabi.body.id}/avatar`)
+      .set('Authorization', `Bearer ${gonzaloLogin.body.accessToken}`)
+      .expect(403);
+    expect(gonzalo.body.avatarUrl).toBeNull();
+
+    // Quitarla: vuelve a null y el archivo deja de estar disponible.
+    const quitada = await request(server)
+      .delete(`/users/${fabi.body.id}/avatar`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+    expect(quitada.body.avatarUrl).toBeNull();
+    await request(server).get(reemplazo.body.avatarUrl).expect(404);
+  });
+
   it('recorre el flujo completo: alta de usuarios, login, chat, mensaje y control de acceso', async () => {
     const server = app.getHttpServer();
 

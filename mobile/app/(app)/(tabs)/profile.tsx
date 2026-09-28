@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
+import * as ImagePicker from 'expo-image-picker';
 import { Controller, useForm } from 'react-hook-form';
 import {
   ActivityIndicator,
@@ -13,13 +14,13 @@ import {
   View,
 } from 'react-native';
 import { z } from 'zod';
-import { deleteUser, updateUser } from '@/src/api/users';
+import { deleteAvatar, deleteUser, updateUser, uploadAvatar } from '@/src/api/users';
 import { ApiError } from '@/src/api/client';
 import { Avatar } from '@/src/components/Avatar';
 import { FormTextInput } from '@/src/components/FormTextInput';
 import { useSessionStore } from '@/src/store/session';
-import { showChoice } from '@/src/utils/alert';
-import { colors, radii, sizes, spacing, typography } from '@/src/theme/tokens';
+import { showAlert, showChoice } from '@/src/utils/alert';
+import { colors, overlays, radii, sizes, spacing, typography } from '@/src/theme/tokens';
 import { birthDateField, DATE_FORMAT_HINT, toApiDate, toDisplayDate } from '@/src/utils/date';
 import { formatRelativeTimestamp } from '@/src/utils/format';
 
@@ -28,17 +29,9 @@ const schema = z.object({
   lastName: z.string().min(1, 'Requerido'),
   birthDate: birthDateField,
   phone: z.string().min(6, 'Teléfono inválido'),
-  /**
-   * El backend guarda una URL (`@IsUrl()`), no un archivo: no hay endpoint de
-   * subida de avatar, así que el campo es la URL de la foto. Vacío es válido
-   * y significa "sin foto" — ver `onSubmit`, que lo traduce a `null`.
-   */
-  avatarUrl: z
-    .string()
-    .trim()
-    .refine((value) => value === '' || /^https?:\/\/\S+$/i.test(value), {
-      message: 'Tiene que ser una URL que empiece con http:// o https://',
-    }),
+  // La foto no es parte del formulario: se sube como archivo apenas se elige,
+  // con su propio endpoint (`POST /users/:id/avatar`), sin pasar por "Guardar
+  // cambios". Ver `handlePickAvatar`.
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -50,6 +43,7 @@ export default function ProfileScreen() {
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [togglingStatus, setTogglingStatus] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
 
   const {
     control,
@@ -62,7 +56,6 @@ export default function ProfileScreen() {
       lastName: user?.lastName ?? '',
       birthDate: user ? toDisplayDate(user.birthDate) : '',
       phone: user?.phone ?? '',
-      avatarUrl: user?.avatarUrl ?? '',
     },
   });
 
@@ -76,9 +69,6 @@ export default function ProfileScreen() {
       const updated = await updateUser(user.id, {
         ...values,
         birthDate: toApiDate(values.birthDate),
-        // Vacío es "quitar la foto": el backend distingue `null` (borrar) de
-        // omitir la clave (no tocar), y `''` no pasaría el `@IsUrl()`.
-        avatarUrl: values.avatarUrl === '' ? null : values.avatarUrl,
       });
       updateSessionUser(updated);
       setFeedback({ type: 'success', text: 'Perfil actualizado' });
@@ -87,6 +77,66 @@ export default function ProfileScreen() {
         type: 'error',
         text: err instanceof ApiError ? err.message : 'No pudimos guardar los cambios',
       });
+    }
+  };
+
+  /**
+   * La foto se sube apenas se elige, no al tocar "Guardar cambios": es un
+   * archivo con su propio endpoint, no un campo del formulario, y esperar al
+   * submit obligaría a sostener la imagen elegida en memoria sin necesidad.
+   */
+  const handlePickAvatar = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      showAlert('Permiso necesario', 'Necesitamos acceso a tus fotos para cambiar tu foto de perfil.');
+      return;
+    }
+    // Recorte cuadrado: el avatar se dibuja circular, así que si no se recorta
+    // una foto apaisada se muestra centrada y cortada por el borde. `quality`
+    // menor a 1 además fuerza el reencodeo a JPEG en iOS, que es lo que evita
+    // que llegue un HEIC (el backend solo acepta png/jpeg/webp).
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+
+    setFeedback(null);
+    setAvatarBusy(true);
+    try {
+      const updated = await uploadAvatar(user.id, {
+        uri: asset.uri,
+        name: asset.fileName ?? 'foto-de-perfil.jpg',
+        mimeType: asset.mimeType ?? 'image/jpeg',
+      });
+      updateSessionUser(updated);
+      setFeedback({ type: 'success', text: 'Foto de perfil actualizada' });
+    } catch (err) {
+      setFeedback({
+        type: 'error',
+        text: err instanceof ApiError ? err.message : 'No pudimos subir la foto',
+      });
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    setFeedback(null);
+    setAvatarBusy(true);
+    try {
+      updateSessionUser(await deleteAvatar(user.id));
+      setFeedback({ type: 'success', text: 'Foto de perfil quitada' });
+    } catch (err) {
+      setFeedback({
+        type: 'error',
+        text: err instanceof ApiError ? err.message : 'No pudimos quitar la foto',
+      });
+    } finally {
+      setAvatarBusy(false);
     }
   };
 
@@ -131,7 +181,37 @@ export default function ProfileScreen() {
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
-          <Avatar firstName={user.firstName} lastName={user.lastName} avatarUrl={user.avatarUrl} size={sizes.avatarProfile} />
+          <Pressable
+            onPress={() => void handlePickAvatar()}
+            disabled={avatarBusy}
+            accessibilityRole="button"
+            accessibilityLabel={user.avatarUrl ? 'Cambiar foto de perfil' : 'Agregar foto de perfil'}
+            testID="avatar-picker"
+          >
+            <Avatar
+              firstName={user.firstName}
+              lastName={user.lastName}
+              avatarUrl={user.avatarUrl}
+              size={sizes.avatarProfile}
+            />
+            {avatarBusy && (
+              <View style={[styles.avatarOverlay, { borderRadius: sizes.avatarProfile / 2 }]}>
+                <ActivityIndicator color={colors.onPrimary} />
+              </View>
+            )}
+          </Pressable>
+
+          <View style={styles.avatarActions}>
+            <Pressable onPress={() => void handlePickAvatar()} disabled={avatarBusy} testID="change-avatar-button">
+              <Text style={styles.avatarAction}>{user.avatarUrl ? 'Cambiar foto' : 'Agregar foto'}</Text>
+            </Pressable>
+            {user.avatarUrl && (
+              <Pressable onPress={() => void handleRemoveAvatar()} disabled={avatarBusy} testID="remove-avatar-button">
+                <Text style={[styles.avatarAction, styles.avatarActionDanger]}>Quitar foto</Text>
+              </Pressable>
+            )}
+          </View>
+
           <Text style={styles.email}>{user.email}</Text>
         </View>
 
@@ -211,24 +291,6 @@ export default function ProfileScreen() {
               />
             )}
           />
-          <Controller
-            control={control}
-            name="avatarUrl"
-            render={({ field }) => (
-              <FormTextInput
-                label="Foto de perfil (URL)"
-                placeholder="https://… — vacío para quitarla"
-                autoCapitalize="none"
-                keyboardType="url"
-                value={field.value}
-                onChangeText={field.onChange}
-                onBlur={field.onBlur}
-                error={errors.avatarUrl?.message}
-                testID="avatar-url-input"
-              />
-            )}
-          />
-
           {feedback && (
             <View style={[styles.feedback, feedback.type === 'error' && styles.feedbackError]}>
               <Text style={[styles.feedbackText, feedback.type === 'error' && styles.feedbackTextError]}>
@@ -281,6 +343,27 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     gap: spacing.xs,
+  },
+  avatarOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: overlays.backdrop,
+  },
+  avatarActions: {
+    flexDirection: 'row',
+    gap: spacing.md,
+  },
+  avatarAction: {
+    ...typography.bodyMedium,
+    color: colors.primary,
+  },
+  avatarActionDanger: {
+    color: colors.error,
   },
   email: {
     ...typography.caption,

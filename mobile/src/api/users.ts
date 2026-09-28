@@ -1,5 +1,7 @@
 import type { ConnectionStatus, PaginatedResult, User } from '@/src/types/api';
+import { appendAttachment } from './attachment-form';
 import { apiClient } from './client';
+import type { OutgoingAttachment } from './messages';
 
 export interface CreateUserInput {
   email: string;
@@ -19,13 +21,31 @@ export interface UpdateUserInput {
   lastName?: string;
   birthDate?: string;
   phone?: string;
-  /** `null` quita la foto actual; omitir la clave la deja como está. */
-  avatarUrl?: string | null;
   status?: ConnectionStatus;
 }
 
 export function updateUser(id: string, input: UpdateUserInput): Promise<User> {
   return apiClient.patch<User>(`/users/${id}`, input);
+}
+
+/**
+ * Sube la foto de perfil. La `avatarUrl` no se manda como campo de texto: el
+ * backend la arma él mismo a partir del archivo que guarda (ver
+ * `docs/DECISIONS.md`), así que esto devuelve el usuario ya actualizado.
+ *
+ * Reusa `appendAttachment` de los adjuntos de mensajes porque es el único
+ * armado de FormData que funciona en los dos runtimes (ver ese archivo: el
+ * `File` de React Native choca con el parche de FormData de Expo).
+ */
+export async function uploadAvatar(id: string, photo: OutgoingAttachment): Promise<User> {
+  const form = new FormData();
+  await appendAttachment(form, photo);
+  return apiClient.post<User>(`/users/${id}/avatar`, form, { isFormData: true });
+}
+
+/** Quita la foto de perfil: vuelve a las iniciales y borra el archivo del server. */
+export function deleteAvatar(id: string): Promise<User> {
+  return apiClient.delete<User>(`/users/${id}/avatar`);
 }
 
 /** Los mismos campos que acepta `SORTABLE_FIELDS` en el backend (QueryUsersDto). */

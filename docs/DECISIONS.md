@@ -92,6 +92,8 @@ Registro de decisiones de arquitectura y su justificación (formato ADR simplifi
 
 ## 2026-09-25 — Mobile: sin edición de avatar
 
+> **Revertida el 2026-09-28.** Se implementó la subida de archivo real; ver *"La foto de perfil se sube como archivo"* al final de este documento. Se conserva la entrada porque explica de dónde venía el límite.
+
 **Decisión:** La pantalla de perfil no permite cambiar la foto/avatar.
 
 **Por qué:** el backend solo acepta `avatarUrl` como string (una URL), no upload de archivo, en el endpoint de edición de perfil (`PATCH /users/:id`) — a diferencia de los mensajes, que sí soportan adjuntar un archivo real. Pedirle al usuario que pegue una URL de imagen a mano es mala UX y no aporta a lo que se evalúa; se documenta como alcance no cubierto en vez de forzar una solución pobre.
@@ -367,6 +369,8 @@ useSafeLayoutEffect(() => {
 
 ## 2026-09-27 — La foto de perfil se edita por URL, no por subida de archivo
 
+> **Superada el 2026-09-28**, un día después: se construyó el endpoint dedicado que esta entrada describe como "alcance que la consigna no pide" y el campo de texto dejó de existir. Ver *"La foto de perfil se sube como archivo"* al final de este documento. Se conserva porque el paso intermedio (y el argumento de por qué no reusar el storage de adjuntos) sigue siendo el contexto de la decisión final.
+
 **Contexto:** la consigna lista "foto o avatar" entre los campos del perfil y pide una pantalla de perfil editable. El campo existía en el modelo (`avatarUrl`), el `PATCH /users/:id` lo aceptaba y el `Avatar` lo mostraba, pero **no había forma de setearlo desde la app**: el único camino era Swagger. La auditoría lo marcó como parcial.
 
 **Decisión:** el formulario del perfil suma un campo "Foto de perfil (URL)". Vacío quita la foto y se vuelve a las iniciales.
@@ -392,3 +396,47 @@ Seis ítems que la auditoría de cumplimiento marcó en parcial y se cerraron ju
 **Ejemplos de Swagger donde faltaban (P5.5).** `create-chat.dto.ts` y `update-user.dto.ts` son cuerpos de request y no tenían ningún `example`, así que el "Try it out" arrancaba vacío; `query-users.dto.ts` tampoco tenía uno para `search`. `query-messages.dto.ts` se dejó como estaba: sus dos campos declaran `default`, que es lo que Swagger UI usa para prellenar, y un `example: 1` sobre un `default: 1` es ruido.
 
 **Tabla de dependencias completa (P4.9).** La consigna permite bibliotecas externas "cuando su uso esté documentado" y el README solo nombraba las principales. Ahora lista cada dependencia de runtime de los dos proyectos con para qué está. Dos merecen nota: `libphonenumber-js` no la importa nuestro código — la carga `class-validator` por dentro para resolver el `@IsPhoneNumber` del teléfono, y se declara explícita para no depender de que siga llegando como transitiva; y `multer`, del que se importa `diskStorage`, llega como transitiva de `@nestjs/platform-express`.
+
+---
+
+## 2026-09-28 — La foto de perfil se sube como archivo
+
+**Contexto:** hasta ayer el perfil editaba `avatarUrl` como un campo de texto donde había que pegar una URL. Cumplía la letra de la consigna ("foto o avatar" entre los campos del perfil), pero era el único campo del formulario que se notaba sin terminar: nadie tiene a mano la URL pública de una foto suya. La entrada del 2026-09-27 lo dejó anotado como límite conocido y ahora se cierra.
+
+**Decisión:** la foto es un archivo que sube el usuario, con dos rutas propias y almacenamiento propio:
+
+- `POST /users/:id/avatar` (multipart, campo `file`) guarda la imagen y devuelve el usuario con su `avatarUrl` nueva.
+- `DELETE /users/:id/avatar` la quita y borra el archivo.
+- `GET /uploads/avatars/:storedName` la sirve.
+
+**Autorización sin código nuevo:** las dos rutas de escritura usan el mismo `RolesGuard` + `@Roles('admin')` que `PATCH`/`DELETE /users/:id`. Ese guard ya resuelve "dueño o admin" leyendo el `:id` de la ruta, así que "cada quien cambia su propia foto, un admin la de cualquiera" salió de reusar lo que ya estaba.
+
+**`avatarUrl` dejó de ser escribible por el cliente.** Se sacó de `CreateUserDto` y de `UpdateUserDto`. Es un cambio deliberado y no solo de limpieza: el valor ahora apunta a un archivo que guardó el propio servidor, y si el cliente pudiera setearlo podría apuntarlo a cualquier path del servidor (haciendo que `GET /uploads/avatars/...` sirva algo que no subió él) o a un host arbitrario. El campo pasa a ser de solo lectura en la respuesta.
+
+**Storage propio, separado del de adjuntos:** `uploads/avatars/`, con su propia config de multer en `UsersModule` (`MessagesModule` ya tenía la suya). Son dos cosas distintas: un adjunto pertenece a un mensaje y es inmutable; un avatar pertenece a un usuario, se reemplaza y se borra con la cuenta.
+
+**Allowlist png/jpeg/webp, sin SVG.** Un SVG es una imagen, pero puede traer `<script>` y se renderiza como documento: XSS almacenado en el origen de la API. Los adjuntos cubren ese agujero forzando la descarga (`Content-Disposition: attachment`), pero un avatar **tiene** que renderizarse inline — es un `<Image>` — así que ahí esa defensa no está disponible y la única que queda es no aceptar formatos ejecutables. La extensión con la que el archivo queda en disco sale del mime que pasó el filtro, no del nombre que mandó el cliente, y el `Content-Type` al servir sale de esa extensión y no de lo que declaró el cliente.
+
+**Ruta de servido propia y no la de adjuntos.** `GET /uploads/:storedName` resuelve el archivo buscando el **mensaje** cuyo `attachment.url` coincide; un avatar no tiene mensaje, así que por esa ruta daría 404 aunque el archivo exista. `AvatarsController` hace la búsqueda equivalente contra `users`. Las dos rutas conviven sin pisarse porque `/uploads/avatars/x.png` tiene un segmento más que `/uploads/:storedName`. De la búsqueda sale además el nombre en disco, igual que en adjuntos: el path se arma con lo que guardó el servidor y no con el segmento crudo de la URL, así un `../` en el pedido no puede salir de la carpeta.
+
+**Se borra el archivo anterior** al reemplazar la foto, al quitarla, al eliminar la cuenta y al correr el seed (que ya vaciaba las colecciones). Sin eso, cada cambio de foto dejaba un archivo más en disco que ya nadie podía pedir — y en Docker, donde `uploads/` es un volumen que sobrevive a los reinicios y el seed corre en cada uno, iban a acumularse. El borrado nunca hace fallar la operación: si el archivo viejo no se puede borrar, el cambio de foto ya está persistido y el costo es un huérfano, no un 500 sobre algo que salió bien.
+
+**Mobile:** el campo de texto se reemplazó por el picker (`expo-image-picker`, ya instalado para los adjuntos). Se toca el avatar o "Cambiar foto", y "Quitar foto" aparece solo si hay una. Tres detalles que valen:
+
+- **La foto se sube al elegirla, no al tocar "Guardar cambios".** Es un archivo con su propio endpoint, no un campo del formulario; esperar al submit obligaría a sostener la imagen en memoria sin necesidad y a mezclar dos requests distintas en un botón.
+- **`allowsEditing` + `aspect: [1,1]`**: el avatar se dibuja circular, así que sin recorte una foto apaisada se muestra cortada por el borde. El `quality: 0.7` además fuerza el reencodeo a JPEG en iOS, que es lo que evita que llegue un HEIC (fuera de la allowlist).
+- **Se reusa `appendAttachment`** (`src/api/attachment-form.ts`), que es el único armado de FormData que funciona en los dos runtimes — ver esa entrada para el choque entre el `File` de React Native y el parche de `FormData` de Expo. El `Avatar` pasa la URL por `resolveAssetUrl` porque ahora es un path relativo, igual que los adjuntos.
+
+---
+
+## 2026-09-28 — Docker: verificado corriendo, y el contenedor dejó de correr como root
+
+**Contexto:** el `Dockerfile` y el `docker-compose.yml` estaban escritos desde el 2026-09-24 pero **nunca se habían construido**: no había Docker en el entorno de desarrollo. Quedaba anotado en `docs/PROGRESS.md` como pendiente de verificación manual. Con Docker disponible se construyó, se levantó y se probó de punta a punta.
+
+**Resultado:** `docker compose up --build` deja la API con datos de prueba en un comando. Verificado contra el contenedor: `/health`, login, subida y servido de foto de perfil (bytes idénticos a los subidos), rechazo 415 de un SVG, borrado del archivo anterior al reemplazar, y subida/descarga de un adjunto de mensaje — las dos rutas de `/uploads` conviviendo. El healthcheck del compose reporta `healthy`.
+
+**El proceso ya no corre como root.** `USER node` en la etapa de runtime: si alguna vez se lograra ejecutar código a través de una subida, lo haría con un usuario sin privilegios. La carpeta `uploads/avatars` se crea en la imagen **y con el dueño correcto**, porque Docker copia el dueño de ese directorio al inicializar el volumen — si no existiera en la imagen, el volumen nacería de root y el proceso no podría escribir en él.
+
+**`HEALTHCHECK` en el Dockerfile**, aparte del que ya tenía Mongo en el compose: hace visible en `docker ps` si la app quedó arriba pero sin responder (por ejemplo, sin poder conectar a Mongo), y es lo que podría esperar un `depends_on: condition: service_healthy` si mañana algo se encadena a este servicio.
+
+**El re-seed en cada arranque se mantiene**, y ahora también limpia `uploads/`. Es intencional para un entorno de evaluación (`docker compose up` siempre da el mismo estado conocido) y está anotado como tal en `backend/README.md`; no es lo que uno querría en producción.

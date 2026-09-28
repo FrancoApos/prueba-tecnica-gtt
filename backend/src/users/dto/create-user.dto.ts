@@ -1,13 +1,5 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsDateString,
-  IsEmail,
-  IsOptional,
-  IsPhoneNumber,
-  IsString,
-  IsUrl,
-  MinLength,
-} from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsDateString, IsEmail, IsPhoneNumber, IsString, MinLength } from 'class-validator';
 
 export class CreateUserDto {
   @ApiProperty({ example: 'ana@example.com' })
@@ -35,8 +27,10 @@ export class CreateUserDto {
   @IsPhoneNumber(undefined, { message: 'Teléfono inválido' })
   phone!: string;
 
-  @ApiPropertyOptional({ example: 'https://example.com/avatar.jpg' })
-  @IsOptional()
-  @IsUrl()
-  avatarUrl?: string;
+  /**
+   * La foto de perfil no está acá: no es un campo de texto, es un archivo, y
+   * se sube aparte con `POST /users/:id/avatar` una vez que la cuenta existe
+   * (el archivo se guarda con el id del dueño, así que necesita que ya haya
+   * uno). Ver `docs/DECISIONS.md`.
+   */
 }

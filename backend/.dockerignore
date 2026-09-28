@@ -5,3 +5,7 @@ uploads
 .env
 .git
 test
+# Artefactos de desarrollo local que no hacen falta ni para compilar
+mongo-uri.txt
+start-mem-mongo.mjs
+*.tsbuildinfo
