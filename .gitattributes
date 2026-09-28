@@ -1,0 +1,35 @@
+# Fines de línea. Sin esto el repo quedaba mezclado: cada archivo conservaba
+# el final con el que lo escribió la herramienta que lo tocó (LF en unos, CRLF
+# en otros), y una edición de una línea desde Windows podía aparecer como el
+# archivo entero modificado.
+#
+# `text=auto` deja que git detecte qué es texto y qué es binario; `eol=lf`
+# fuerza LF tanto en lo que se guarda en el repo como en el checkout, en
+# cualquier sistema operativo. El toolchain del proyecto (Node, TypeScript,
+# Metro, Docker) trabaja con LF sin problema en Windows.
+* text=auto eol=lf
+
+# Binarios: que git no los trate como texto ni intente normalizarlos.
+# Hoy solo hay PNG (las capturas del design system en docs/design), el resto
+# está declarado para que un asset futuro no dependa de la autodetección.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.docx binary
+
+# Fuentes, por si alguna se versiona en vez de venir del paquete de Google Fonts.
+*.ttf binary
+*.otf binary
+*.woff binary
+*.woff2 binary
+
+# Claves y certificados de firma de las builds nativas (ya ignorados en
+# .gitignore, declarados acá por si alguna vez se fuerza el add de uno).
+*.jks binary
+*.p12 binary
+*.p8 binary
+*.keystore binary
