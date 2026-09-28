@@ -1,6 +1,6 @@
 # Progreso del proyecto
 
-Última actualización: 2026-09-26
+Última actualización: 2026-09-27
 
 ## Estado general: 🟢 Backend y mobile funcionales de punta a punta
 
@@ -17,14 +17,14 @@
 - [x] Estructura de módulos (auth, users, chats, messages, common, config)
 - [x] Auth (login, JWT, passport-jwt)
 - [x] CRUD usuarios/perfiles (alta pública, resto protegido, self-or-admin edit/delete vía `RolesGuard` + `@Roles('admin')`)
-- [x] Listado de usuarios (filtro de texto, paginado, orden) y de chats (paginado por participante, más recientes primero)
-- [x] Conversación (mensajes de texto y adjuntos vía multipart, servidos como estáticos)
+- [x] Listado de usuarios (filtro de texto, paginado y ordenamiento — los tres los pide la consigna) y de chats (todos los del participante, ordenados por actividad más reciente; la consigna no pide paginarlos ni ordenarlos, el orden es un agregado)
+- [x] Conversación (mensajes de texto y adjuntos vía multipart, servidos por `AttachmentsController` con el nombre original en el `Content-Disposition`, ver `docs/DECISIONS.md`)
 - [x] Presencia en vivo: el gateway marca `online`/`offline` + `lastSeenAt` según la conexión del socket (contando sesiones por usuario) y emite `presence:changed` a los contactos; el toggle manual del perfil también lo emite
 - [x] Tiempo real: gateway de Socket.IO (`src/realtime/`) que empuja `message:new` a los participantes del chat; handshake autenticado con el mismo JWT del REST, socket sin token rechazado. El WS **solo empuja** — escribir sigue siendo el `POST` (ver `docs/DECISIONS.md`)
 - [x] Validaciones (DTOs con class-validator, ValidationPipe global whitelist+forbidNonWhitelisted)
 - [x] Manejo de errores global (`HttpExceptionFilter`, shape consistente)
 - [x] Swagger en `/docs` (con Bearer auth)
-- [x] Tests unitarios (25, incluye la presencia del gateway: multi-sesión, offline al cerrar la última, socket sin token) + e2e (flujo completo + control de acceso self-or-admin, con `mongodb-memory-server`, sin depender de Docker/Mongo externo)
+- [x] Tests unitarios (30, incluye la presencia del gateway —multi-sesión, offline al cerrar la última, socket sin token— y el orden del listado de usuarios) + e2e (3: health, flujo completo + control de acceso self-or-admin, y subida/descarga de un adjunto verificando que conserve su nombre original; con `mongodb-memory-server`, sin depender de Docker/Mongo externo)
 - [x] Seed de datos de prueba (`npm run seed`) con credenciales documentadas
 
 ## Mobile
@@ -32,18 +32,21 @@
 - [x] Integración API centralizada (`src/api/client.ts`, sin URLs/datos hardcodeados en componentes)
 - [x] Manejo de estado (Zustand para sesión y chats; hook dedicado para mensajes de una conversación)
 - [x] Formularios con validación (react-hook-form + zod) en login y perfil
-- [x] Estados de UX: loading, error con retry, empty, y manejo de teclado (KeyboardAvoidingView)
+- [x] Estados de UX: loading, error con retry, empty, y manejo de teclado (KeyboardAvoidingView en los formularios; en la conversación, `useKeyboardHeight` — ver docs/DECISIONS.md)
 - [x] Diseño UI repintado desde el design system real de Stitch "Pulse Chat" (`docs/design/`) — tokens en `src/theme/tokens.ts` (colores, tipografía Inter, spacing, radios, tamaños, sombras), cero valores sueltos en componentes
 - [x] Fuente Inter cargada (`@expo-google-fonts/inter` + `useFonts` con gate en `app/_layout.tsx`)
 - [x] Adjuntos: imagen (expo-image-picker) y archivo (expo-document-picker) en la conversación
 - [x] Presencia en vivo en la UI: "Activo"/"Inactivo" bajo el nombre en el header de la conversación y el punto del avatar en el listado, actualizados por `presence:changed`
 - [x] Tiempo real: cliente de Socket.IO (`src/realtime/socket.ts`) conectado/desconectado por el store de sesión; la conversación agrega los mensajes entrantes (deduplicados por `id`) y el listado de chats actualiza preview + orden aunque estés en otra pantalla
 - [x] App corriendo en el browser (`npx expo start --web`) como segundo cliente para probar el chat en vivo desde la PC — tres *platform splits* (`secure-storage`, `alert`, `attachment-form`) porque SecureStore, Alert y el FormData de archivos no existen o no funcionan igual en web. Verificado con `expo export --platform web` (bundle sin errores, usa las variantes web)
-- [x] Tests (10): store de sesión (incluye que abra/cierre el canal de tiempo real), utilidades, y formulario de login (éxito/validación/error de credenciales)
+- [x] Tests (31, 7 suites): store de sesión (incluye que abra/cierre el canal de tiempo real), utilidades (formato de timestamps y conversión de fechas DD-MM-YYYY ↔ ISO), formulario de login (éxito/validación/error de credenciales) y la hoja de ordenamiento de Users (selección en borrador hasta aplicar, y el mapeo de cada opción al par `sortBy`/`sortOrder` del backend)
 - [x] `expo-doctor` 21/21 y bundle de producción (Metro, Android) verificados sin errores
 - [x] **Módulo de usuarios** (obligatorio, ver `docs/REQUIREMENTS.md`): tab "Users" — directorio con búsqueda + paginado, tap para iniciar chat con cualquiera, editar/eliminar la cuenta de *otro* usuario solo visible si el rol es `admin` (gate real del lado del servidor, ver `docs/DECISIONS.md` "Roles (self-or-admin)")
-- [ ] Probado en dispositivo físico real por el usuario (backend expuesto en LAN, pendiente de confirmación del usuario) — el camino de tiempo real sí está verificado de punta a punta por script (dos sesiones reales contra el backend real, ver Notas)
-- [ ] Ordenar el listado de Users (el mock de Stitch tiene un bottom sheet de "Sort by" — no implementado, se usa el orden default del backend)
+- [x] Probado en un iPhone físico contra el backend en la LAN (2026-09-27): login, conversación en vivo y envío de adjuntos (.docx, .pdf, imagen). Salieron dos bugs de ahí, los dos arreglados y documentados en `docs/DECISIONS.md`:
+  - `Cannot assign to property 'name' which has only a getter` al mandar cualquier adjunto — choque entre el `FormData` parcheado de Expo y el `File` de React Native
+  - el archivo se descargaba con el UUID del disco en vez de su nombre original, y con los acentos y espacios percent-encodeados
+- [x] Ordenar el listado de Users — bottom sheet "Ordenar por" (`src/components/UsersSortSheet.tsx`) con las cuatro opciones del mock: Nombre A–Z / Z–A, Actividad reciente y Más recientes primero. Completa el "paginado y ordenamiento" que pide la consigna para el listado de usuarios
+- [ ] Chips "All / Online / Offline" del mock de Users (filtro por estado de conexión) — no los pide la consigna y el backend no tiene todavía un parámetro de filtro por `status`
 
 ## Documentación y entrega
 - [x] README del backend (instalación, ejecución, env vars, seed/credenciales, arquitectura, rutas, tests)

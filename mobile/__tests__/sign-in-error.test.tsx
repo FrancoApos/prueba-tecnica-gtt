@@ -40,7 +40,10 @@ describe('SignInScreen — credenciales inválidas', () => {
     fireEvent.changeText(screen.getByTestId('password-input'), 'incorrecta1');
     fireEvent.press(screen.getByTestId('submit-button'));
 
-    const errorBanner = await screen.findByTestId('login-error');
-    expect(errorBanner).toHaveTextContent('Email o contraseña incorrectos');
+    // Se busca el texto y no `toHaveTextContent` sobre el banner: el banner
+    // incluye los íconos de alerta y de cerrar, que son glifos de una fuente y
+    // entran igual en el texto concatenado del contenedor.
+    expect(await screen.findByTestId('login-error')).toBeTruthy();
+    expect(screen.getByText('Email o contraseña incorrectos')).toBeTruthy();
   });
 });

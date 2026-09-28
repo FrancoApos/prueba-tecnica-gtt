@@ -100,7 +100,7 @@ npm run typecheck    # tsc --noEmit
 npm run lint          # expo lint
 ```
 
-**Unit/component tests** (17, `__tests__/`):
+**Unit/component tests** (31, `__tests__/`):
 - Utilidades de formateo (`getInitials`, `formatRelativeTimestamp`, `formatDayLabel`)
 - Store de sesión — login/logout/hidratación desde el almacén seguro, que abra/cierre el canal de tiempo real, y que un 401 (no un logout manual) muestre el mensaje de sesión vencida
 - `useMessages` — el envío optimista: el mensaje aparece de inmediato (`pending`) y se confirma con la respuesta del server, o se marca `failed` (sin revertirse) si la request rechaza

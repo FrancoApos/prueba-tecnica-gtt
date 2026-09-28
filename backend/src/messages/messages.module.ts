@@ -7,6 +7,7 @@ import { MulterModule } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { ChatsModule } from '../chats/chats.module.js';
 import { RealtimeModule } from '../realtime/realtime.module.js';
+import { AttachmentsController } from './controllers/attachments.controller.js';
 import { MessagesController } from './controllers/messages.controller.js';
 import { MessagesService } from './services/messages.service.js';
 import { Message, MessageSchema } from './schemas/message.schema.js';
@@ -29,7 +30,7 @@ import { Message, MessageSchema } from './schemas/message.schema.js';
       }),
     }),
   ],
-  controllers: [MessagesController],
+  controllers: [MessagesController, AttachmentsController],
   providers: [MessagesService],
 })
 export class MessagesModule {}

@@ -15,6 +15,12 @@ build/
 # Adjuntos subidos en desarrollo (no se versionan)
 backend/uploads/
 
+# URI que escribe backend/start-mem-mongo.mjs al levantar el Mongo en memoria
+backend/mongo-uri.txt
+
+# Checklist interno de autoevaluación contra la consigna (documento de trabajo)
+AUDITORIA-PRUEBA-TECNICA.md
+
 # Logs
 *.log
 npm-debug.log*

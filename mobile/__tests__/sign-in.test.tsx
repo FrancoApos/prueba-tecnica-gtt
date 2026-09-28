@@ -35,6 +35,7 @@ describe('SignInScreen', () => {
     fireEvent.press(screen.getByTestId('submit-button'));
 
     expect(await screen.findByText('Ingresá tu email')).toBeTruthy();
+    expect(screen.getByText('Ingresá tu contraseña')).toBeTruthy();
     expect(loginMock).not.toHaveBeenCalled();
   });
 

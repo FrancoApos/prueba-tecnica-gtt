@@ -1,21 +1,14 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack, useLocalSearchParams } from 'expo-router';
-import {
-  FlatList,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Avatar } from '@/src/components/Avatar';
 import { EmptyState, ErrorState, LoadingState } from '@/src/components/StateView';
 import { MessageBubble } from '@/src/components/MessageBubble';
+import { useKeyboardHeight } from '@/src/hooks/useKeyboardHeight';
 import { useMessages, type LocalMessage } from '@/src/hooks/useMessages';
 import type { OutgoingAttachment } from '@/src/api/messages';
 import { useChatsStore } from '@/src/store/chats';
@@ -53,6 +46,8 @@ export default function ConversationScreen() {
   const { messages, status, errorMessage, reload, send, retry } = useMessages(chatId);
   const [text, setText] = useState('');
   const listRef = useRef<FlatList<ConversationListItem>>(null);
+  const keyboardHeight = useKeyboardHeight();
+  const insets = useSafeAreaInsets();
 
   const listItems = useMemo<ConversationListItem[]>(() => {
     const items: ConversationListItem[] = [];
@@ -67,6 +62,12 @@ export default function ConversationScreen() {
     }
     return items;
   }, [messages]);
+
+  // Al abrir el teclado la lista se achica: sin esto los últimos mensajes
+  // quedan tapados hasta que el usuario scrollea a mano.
+  useEffect(() => {
+    if (keyboardHeight > 0) listRef.current?.scrollToEnd({ animated: true });
+  }, [keyboardHeight]);
 
   const submitText = () => {
     const content = text.trim();
@@ -133,12 +134,11 @@ export default function ConversationScreen() {
     void send(content, attachment);
   };
 
+  // El hueco para el teclado se toma del alto que reporta el propio teclado
+  // (ver useKeyboardHeight) en vez de KeyboardAvoidingView, que necesita saber
+  // el alto exacto del header y por eso lo tapaba en el iPhone.
   return (
-    <KeyboardAvoidingView
-      style={styles.flex}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-    >
+    <View style={[styles.flex, { paddingBottom: keyboardHeight }]}>
       <Stack.Screen
         options={{
           // Sin esto iOS pone al lado de la flecha el título de la pantalla
@@ -212,7 +212,9 @@ export default function ConversationScreen() {
         />
       )}
 
-      <View style={styles.inputBar}>
+      {/* Con el teclado abierto el área del home indicator ya queda cubierta
+          por el propio teclado; solo hay que respetarla cuando está cerrado. */}
+      <View style={[styles.inputBar, { paddingBottom: spacing.sm + (keyboardHeight > 0 ? 0 : insets.bottom) }]}>
         <Pressable onPress={pickAndSendAttachment} hitSlop={10} style={styles.attachButton} testID="attach-button">
           <Ionicons name="add" size={22} color={colors.textSecondary} />
         </Pressable>
@@ -234,7 +236,7 @@ export default function ConversationScreen() {
           <Ionicons name="send" size={18} color={colors.onPrimary} />
         </Pressable>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 

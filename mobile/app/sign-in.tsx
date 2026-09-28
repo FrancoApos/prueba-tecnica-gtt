@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Ionicons } from '@expo/vector-icons';
 import { Controller, useForm } from 'react-hook-form';
 import {
   ActivityIndicator,
@@ -15,11 +16,16 @@ import { z } from 'zod';
 import { ApiError } from '@/src/api/client';
 import { FormTextInput } from '@/src/components/FormTextInput';
 import { useSessionStore } from '@/src/store/session';
-import { colors, radii, sizes, spacing, typography } from '@/src/theme/tokens';
+import { colors, radii, shadows, sizes, spacing, typography } from '@/src/theme/tokens';
 
+/**
+ * El largo mínimo de la contraseña se valida en el alta de cuenta, no acá: en
+ * login, rechazar por largo le dice a quien intenta entrar que el problema es
+ * el formato y no la credencial. Espeja a `LoginDto` del backend.
+ */
 const schema = z.object({
   email: z.string().min(1, 'Ingresá tu email').email('Ingresá un email válido'),
-  password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
+  password: z.string().min(1, 'Ingresá tu contraseña'),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -59,76 +65,122 @@ export default function SignInScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <View style={styles.header}>
-          <Text style={styles.title}>Chat App</Text>
-          <Text style={styles.subtitle}>Iniciá sesión para ver tus conversaciones</Text>
-        </View>
-
-        <View style={styles.form}>
-          {sessionExpiredMessage && (
-            <View style={styles.serverError} testID="session-expired-message">
-              <Text style={styles.serverErrorText}>{sessionExpiredMessage}</Text>
+        <View style={styles.content}>
+          <View style={styles.header}>
+            <View style={styles.logo}>
+              <Ionicons name="chatbubbles" size={34} color={colors.onPrimary} />
             </View>
-          )}
+            <Text style={styles.title}>Chat App</Text>
+            <Text style={styles.subtitle}>Iniciá sesión para ver tus conversaciones</Text>
+          </View>
 
-          <Controller
-            control={control}
-            name="email"
-            render={({ field }) => (
-              <FormTextInput
-                label="Email"
-                placeholder="ana@example.com"
-                autoCapitalize="none"
-                autoComplete="email"
-                keyboardType="email-address"
-                value={field.value}
-                onChangeText={field.onChange}
-                onBlur={field.onBlur}
-                error={errors.email?.message}
-                testID="email-input"
+          <View style={styles.form}>
+            {sessionExpiredMessage && (
+              <AlertBanner
+                text={sessionExpiredMessage}
+                onDismiss={clearSessionExpiredMessage}
+                testID="session-expired-message"
               />
             )}
-          />
 
-          <Controller
-            control={control}
-            name="password"
-            render={({ field }) => (
-              <FormTextInput
-                label="Contraseña"
-                placeholder="••••••••"
-                secureTextEntry
-                autoComplete="password"
-                value={field.value}
-                onChangeText={field.onChange}
-                onBlur={field.onBlur}
-                error={errors.password?.message}
-                testID="password-input"
-              />
+            <Controller
+              control={control}
+              name="email"
+              render={({ field }) => (
+                <FormTextInput
+                  label="Email"
+                  icon="mail-outline"
+                  placeholder="ana@example.com"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  keyboardType="email-address"
+                  value={field.value}
+                  onChangeText={field.onChange}
+                  onBlur={field.onBlur}
+                  error={errors.email?.message}
+                  testID="email-input"
+                />
+              )}
+            />
+
+            <Controller
+              control={control}
+              name="password"
+              render={({ field }) => (
+                <FormTextInput
+                  label="Contraseña"
+                  icon="lock-closed-outline"
+                  placeholder="Tu contraseña"
+                  secureTextEntry
+                  autoComplete="password"
+                  value={field.value}
+                  onChangeText={field.onChange}
+                  onBlur={field.onBlur}
+                  error={errors.password?.message}
+                  testID="password-input"
+                />
+              )}
+            />
+
+            {serverError && (
+              <AlertBanner text={serverError} onDismiss={() => setServerError(null)} testID="login-error" />
             )}
-          />
 
-          {serverError && (
-            <View style={styles.serverError} testID="login-error">
-              <Text style={styles.serverErrorText}>{serverError}</Text>
-            </View>
-          )}
-
-          <Pressable
-            style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
-            onPress={handleSubmit(onSubmit)}
-            disabled={isSubmitting}
-            testID="submit-button"
-          >
-            {isSubmitting ? (
-              <ActivityIndicator color={colors.onPrimary} />
-            ) : (
-              <Text style={styles.buttonText}>Ingresar</Text>
-            )}
-          </Pressable>
+            <Pressable
+              style={({ pressed }) => [
+                styles.button,
+                pressed && styles.buttonPressed,
+                isSubmitting && styles.buttonDisabled,
+              ]}
+              onPress={handleSubmit(onSubmit)}
+              disabled={isSubmitting}
+              testID="submit-button"
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color={colors.onPrimary} />
+              ) : (
+                <>
+                  <Text style={styles.buttonText}>Ingresar</Text>
+                  <Ionicons name="arrow-forward" size={18} color={colors.onPrimary} />
+                </>
+              )}
+            </Pressable>
+          </View>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
+  );
+}
+
+/**
+ * Aviso de error "de pantalla" (credenciales rechazadas, sesión vencida), a
+ * diferencia del error por campo que ya muestra `FormTextInput`. Se puede
+ * cerrar: si no, el cartel de sesión vencida queda arriba del formulario hasta
+ * que el próximo submit lo limpie.
+ */
+function AlertBanner({
+  text,
+  onDismiss,
+  testID,
+}: {
+  text: string;
+  onDismiss: () => void;
+  testID: string;
+}) {
+  return (
+    <View style={styles.banner} testID={testID}>
+      <Ionicons name="alert-circle" size={18} color={colors.onErrorContainer} />
+      <Text style={styles.bannerText}>{text}</Text>
+      <Pressable
+        onPress={onDismiss}
+        hitSlop={10}
+        accessibilityRole="button"
+        accessibilityLabel="Descartar aviso"
+        testID={`${testID}-dismiss`}
+      >
+        <Ionicons name="close" size={18} color={colors.onErrorContainer} />
+      </Pressable>
+    </View>
   );
 }
 
@@ -137,42 +189,73 @@ const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: spacing.lg,
+    padding: spacing.xl,
+  },
+  /** Ancho acotado: en tablet y en el target web el formulario no tiene por qué
+   * estirarse a lo ancho de toda la pantalla. */
+  content: {
+    width: '100%',
+    maxWidth: 420,
+    alignSelf: 'center',
     gap: spacing.xl,
   },
   header: {
-    gap: spacing.xs,
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  logo: {
+    width: sizes.authLogo,
+    height: sizes.authLogo,
+    borderRadius: radii.bubble,
+    backgroundColor: colors.primaryContainer,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: spacing.sm,
+    ...shadows.light.fab,
   },
   title: {
-    ...typography.titleScreen,
+    ...typography.titleAuth,
     color: colors.textPrimary,
   },
   subtitle: {
     ...typography.bodyDefault,
     color: colors.textSecondary,
+    textAlign: 'center',
+    maxWidth: 280,
   },
   form: {
-    gap: spacing.md,
+    gap: spacing.lg,
   },
-  serverError: {
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
     backgroundColor: colors.errorContainer,
     borderRadius: radii.control,
-    padding: spacing.sm,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
   },
-  serverErrorText: {
+  bannerText: {
     ...typography.caption,
     color: colors.onErrorContainer,
+    flex: 1,
   },
   button: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
     height: sizes.controlHeight,
     backgroundColor: colors.primaryContainer,
     borderRadius: radii.control,
-    alignItems: 'center',
-    justifyContent: 'center',
     marginTop: spacing.xs,
+    ...shadows.light.fab,
   },
   buttonPressed: {
     opacity: 0.85,
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   buttonText: {
     ...typography.bodyMedium,

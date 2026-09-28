@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { basename } from 'node:path';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { ChatsService } from '../../chats/services/chats.service.js';
@@ -9,11 +10,39 @@ import { MessageResponseDto } from '../dto/message-response.dto.js';
 import type { QueryMessagesDto } from '../dto/query-messages.dto.js';
 import { Message, type MessageDocument } from '../schemas/message.schema.js';
 
+/** Lo que necesita `AttachmentsController` para servir un adjunto. */
+export interface StoredAttachment {
+  /** Nombre del archivo en disco: el UUID que generó multer, no el del usuario. */
+  storedName: string;
+  /** Nombre original, el que ve y descarga el usuario. */
+  filename: string;
+  mimeType: string;
+}
+
 export interface UploadedAttachment {
   filename: string;
   originalname: string;
   mimetype: string;
   size: number;
+}
+
+/**
+ * `expo/fetch` — el `fetch` que Expo instala en runtime nativo — pasa el nombre
+ * del archivo por `encodeURIComponent` antes de ponerlo en el
+ * `content-disposition` (ver `encodeFilename` en
+ * `expo/src/winter/fetch/convertFormData.ts`), así que un "Informe final.docx"
+ * llega acá como "Informe%20final.docx". Se decodifica para guardar el nombre
+ * real y no mostrar los `%20` en la conversación. Si el nombre no es una
+ * secuencia percent-encoded válida — un archivo llamado "50%.pdf", por ejemplo,
+ * subido desde un cliente que no encodea — `decodeURIComponent` tira `URIError`
+ * y se conserva tal cual vino.
+ */
+function decodeAttachmentName(originalname: string): string {
+  try {
+    return decodeURIComponent(originalname);
+  } catch {
+    return originalname;
+  }
 }
 
 @Injectable()
@@ -40,7 +69,7 @@ export class MessagesService {
     const attachment = file
       ? {
           url: `/uploads/${file.filename}`,
-          filename: file.originalname,
+          filename: decodeAttachmentName(file.originalname),
           mimeType: file.mimetype,
           size: file.size,
         }
@@ -71,6 +100,25 @@ export class MessagesService {
     );
 
     return response;
+  }
+
+  /**
+   * Resuelve un adjunto a partir del nombre con el que quedó guardado en disco.
+   * Devuelve `storedName` derivado de la URL que armó el propio servidor (un
+   * UUID, ver `messages.module.ts`) y no del segmento crudo de la request: así
+   * el controller no puede terminar armando un path fuera de `uploads/`.
+   */
+  async findAttachment(storedName: string): Promise<StoredAttachment> {
+    const doc = await this.messageModel.findOne({ 'attachment.url': `/uploads/${storedName}` }).exec();
+    if (!doc?.attachment) {
+      throw new NotFoundException('Adjunto no encontrado');
+    }
+
+    return {
+      storedName: basename(doc.attachment.url),
+      filename: doc.attachment.filename,
+      mimeType: doc.attachment.mimeType,
+    };
   }
 
   async findByChat(

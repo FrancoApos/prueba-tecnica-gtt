@@ -27,10 +27,15 @@ export function updateUser(id: string, input: UpdateUserInput): Promise<User> {
   return apiClient.patch<User>(`/users/${id}`, input);
 }
 
+/** Los mismos campos que acepta `SORTABLE_FIELDS` en el backend (QueryUsersDto). */
+export type UserSortField = 'firstName' | 'lastName' | 'email' | 'createdAt' | 'lastSeenAt';
+
 export interface ListUsersParams {
   search?: string;
   page?: number;
   limit?: number;
+  sortBy?: UserSortField;
+  sortOrder?: 'asc' | 'desc';
 }
 
 export function listUsers(params: ListUsersParams = {}): Promise<PaginatedResult<User>> {
@@ -38,6 +43,9 @@ export function listUsers(params: ListUsersParams = {}): Promise<PaginatedResult
   if (params.search) query.set('search', params.search);
   if (params.page) query.set('page', String(params.page));
   if (params.limit) query.set('limit', String(params.limit));
+  // Si no se mandan, el backend aplica su propio default (lastName asc).
+  if (params.sortBy) query.set('sortBy', params.sortBy);
+  if (params.sortOrder) query.set('sortOrder', params.sortOrder);
   const qs = query.toString();
   return apiClient.get<PaginatedResult<User>>(`/users${qs ? `?${qs}` : ''}`);
 }

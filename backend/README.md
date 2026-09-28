@@ -11,7 +11,7 @@ Ver también: [modelado de datos](../docs/DATA_MODEL.md) y [decisiones técnicas
 - **class-validator + class-transformer** — DTOs, `ValidationPipe` global (`whitelist` + `forbidNonWhitelisted`)
 - **bcryptjs** — hash de contraseñas (nunca se persisten ni se devuelven en texto plano)
 - **Swagger (`@nestjs/swagger`)** — documentación interactiva en `/docs`, con ejemplos reales en cada DTO
-- **Multer + diskStorage** — adjuntos (imagen o archivo) servidos como estáticos en `/uploads/*`
+- **Multer + diskStorage** — adjuntos (imagen o archivo) servidos en `/uploads/*` por `AttachmentsController`
 - **Socket.IO (`@nestjs/websockets`)** — push de mensajes nuevos en tiempo real
 - **Vitest + `mongodb-memory-server`** — tests unitarios y e2e reproducibles sin depender de un Mongo externo
 
@@ -46,6 +46,8 @@ npm run start:dev     # con watch, para desarrollo
 npm run start         # sin watch
 npm run build && npm run start:prod   # build + producción
 ```
+
+> **Sin Mongo instalado ni Docker a mano:** `node start-mem-mongo.mjs` levanta un MongoDB en memoria (el mismo `mongodb-memory-server` que usan los tests) e imprime su URI. Copiala a `MONGODB_URI` en tu `.env` y corré el backend normal contra eso. El proceso tiene que quedar abierto: los datos viven mientras corra.
 
 Con el backend corriendo:
 
@@ -95,14 +97,16 @@ npm run lint         # oxlint
 
 **Por qué `mongodb-memory-server`** (ambas suites lo usan): levanta un Mongo real — no un mock — en memoria durante la corrida, así que son **reproducibles en cualquier máquina o CI** sin depender de un Mongo externo corriendo ni de Docker. Un mock de Mongoose no hubiese detectado, por ejemplo, que un índice único falta o que una query con `$regex` mal armada rompe contra el motor real.
 
-**Unit tests** (20, `vitest run`):
+**Unit tests** (35, `vitest run`):
 - `AuthService` — login exitoso, password incorrecta, email inexistente (mismo mensaje genérico, no revela cuál falló)
 - `UsersService` — hash de password, que `role` nunca se cuela en el alta, email duplicado, escape de metacaracteres regex en el filtro de búsqueda
 - `ChatsService` — no chatear con uno mismo, contacto inexistente, creación idempotente (no duplica), acceso denegado a quien no participa
 - `MessagesService` — mensaje sin texto ni adjunto rechazado, adjunto solo, contenido solo espacios, push por WebSocket a los participantes
 - `RolesGuard` — la regla "dueño o rol": sin `@Roles` no restringe, dueño siempre puede, no-admin sobre otro rechazado, admin sobre otro permitido
+- `HttpExceptionFilter` — un id malformado sale 400 (no 500) sin reflejar el valor recibido, un error inesperado sigue siendo 500 sin stack, y el shape de la respuesta es siempre el mismo
+- `configuration` — el secreto de firma nunca cae a un valor conocido: los placeholders del repo se rechazan y, sin `JWT_SECRET`, se genera uno random estable por proceso
 
-**E2E** (2, `test/app.e2e-spec.ts`, contra la app real con los mismos pipes/filtros que producción — ver `src/setup-app.ts`):
+**E2E** (3, `test/app.e2e-spec.ts`, contra la app real con los mismos pipes/filtros que producción — ver `src/setup-app.ts`):
 - Autenticación — alta, login, credenciales inválidas (401), rutas protegidas sin token (401)
 - Chats — listado arranca vacío, creación idempotente, listado con `lastMessage` actualizado
 - Mensajes — envío y lectura, **con verificación de persistencia real**: el mensaje se relee con un `GET` separado (no se confía en la respuesta del `POST`)
@@ -119,7 +123,7 @@ src/
 ├── realtime/        gateway de Socket.IO (push de mensajes nuevos, autenticado con el mismo JWT)
 ├── common/          filtro de errores global, guard JWT, decorator @CurrentUser, DTO de paginado
 ├── config/          configuración tipada desde variables de entorno
-├── setup-app.ts     pipes/filtros/CORS/estáticos compartidos entre main.ts y los tests e2e
+├── setup-app.ts     pipes/filtros/CORS compartidos entre main.ts y los tests e2e
 ├── main.ts          bootstrap (HTTP + Swagger)
 └── seed.ts          datos de prueba
 ```
@@ -131,7 +135,7 @@ Cada módulo sigue el mismo patrón: `schema` (Mongoose) → `dto` (class-valida
 | Método | Ruta | Auth | Descripción |
 |---|---|---|---|
 | POST | `/users` | No | Alta de cuenta (ver nota abajo) |
-| GET | `/users` | Sí | Listado con filtro de texto, paginado y orden |
+| GET | `/users` | Sí | Listado con filtro de texto (`search`), paginado (`page`, `limit`) y orden (`sortBy`: `firstName`/`lastName`/`email`/`createdAt`/`lastSeenAt`, `sortOrder`: `asc`/`desc`) |
 | GET | `/users/:id` | Sí | Detalle de un usuario |
 | PATCH | `/users/:id` | Sí (dueño o admin) | Edita un perfil — el propio siempre, el de otro solo con rol `admin` |
 | DELETE | `/users/:id` | Sí (dueño o admin) | Borra una cuenta — la propia siempre, la de otro solo con rol `admin` |
@@ -170,7 +174,7 @@ Detalle completo en [`docs/DECISIONS.md`](../docs/DECISIONS.md). Puntos clave:
 - **Roles acotados (self-or-admin), no un login admin separado**: un único flujo de login para todos (la consigna solo pide uno). `PATCH`/`DELETE /users/:id` los resuelve un `RolesGuard` genérico: el dueño del recurso siempre puede actuar sobre el suyo; actuar sobre el de otro requiere rol `admin` (`@Roles('admin')`). El rol nunca se acepta en `POST /users` (nadie se autopromueve) — el único admin de la app nace en el seed. Justificación completa en `docs/DECISIONS.md` ("Roles (self-or-admin), no un login admin separado").
 - **Tiempo real como *push* sobre REST**: el gateway de Socket.IO no acepta escrituras; el mensaje se persiste por HTTP y recién entonces se empuja a los participantes. Evita duplicar validación/autorización en un segundo camino de escritura.
 - **Chats solo 1 a 1** (no grupales) — ver `docs/DECISIONS.md` y `docs/DATA_MODEL.md`.
-- **Adjuntos** se guardan en disco (`uploads/`, servida como estática en `/uploads/*`) — sin S3 ni base64, ver justificación en `docs/DECISIONS.md`.
+- **Adjuntos** se guardan en disco (`uploads/`) y se sirven en `/uploads/*` por `AttachmentsController` y no por el servidor de estáticos — sin S3 ni base64. El archivo queda en disco con un UUID como nombre, así que hace falta consultar la base para devolverlo con su nombre original en el `Content-Disposition`; ese header va siempre como `attachment`, que también evita que un `.html`/`.svg` subido como adjunto se ejecute en el origen de la API. Ver justificación en `docs/DECISIONS.md`.
 
 ## Alcance pendiente / conocido
 

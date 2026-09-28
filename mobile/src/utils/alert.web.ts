@@ -8,6 +8,8 @@
 export interface Choice {
   label: string;
   onPress: () => void;
+  /** Existe para igualar la firma de `alert.ts`; el browser no lo usa. */
+  style?: 'destructive';
 }
 
 export function showAlert(title: string, message: string): void {

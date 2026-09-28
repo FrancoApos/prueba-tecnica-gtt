@@ -20,14 +20,12 @@ import { FormTextInput } from '@/src/components/FormTextInput';
 import { ErrorState, LoadingState } from '@/src/components/StateView';
 import { colors, radii, sizes, spacing, typography } from '@/src/theme/tokens';
 import type { User } from '@/src/types/api';
+import { birthDateField, DATE_FORMAT_HINT, toApiDate, toDisplayDate } from '@/src/utils/date';
 
 const schema = z.object({
   firstName: z.string().min(1, 'Requerido'),
   lastName: z.string().min(1, 'Requerido'),
-  birthDate: z
-    .string()
-    .min(1, 'Requerido')
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato AAAA-MM-DD'),
+  birthDate: birthDateField,
   phone: z.string().min(6, 'Teléfono inválido'),
 });
 
@@ -63,7 +61,7 @@ export default function EditUserScreen() {
         reset({
           firstName: fetched.firstName,
           lastName: fetched.lastName,
-          birthDate: fetched.birthDate.slice(0, 10),
+          birthDate: toDisplayDate(fetched.birthDate),
           phone: fetched.phone,
         });
       })
@@ -81,7 +79,7 @@ export default function EditUserScreen() {
   const onSubmit = async (values: FormValues) => {
     setServerError(null);
     try {
-      await updateUser(userId, values);
+      await updateUser(userId, { ...values, birthDate: toApiDate(values.birthDate) });
       router.back();
     } catch (err) {
       setServerError(err instanceof ApiError ? err.message : 'No pudimos guardar los cambios');
@@ -148,7 +146,7 @@ export default function EditUserScreen() {
             render={({ field }) => (
               <FormTextInput
                 label="Fecha de nacimiento"
-                placeholder="AAAA-MM-DD"
+                placeholder={DATE_FORMAT_HINT}
                 value={field.value}
                 onChangeText={field.onChange}
                 onBlur={field.onBlur}

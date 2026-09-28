@@ -2,7 +2,13 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsEnum, IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
-const SORTABLE_FIELDS = ['firstName', 'lastName', 'email', 'createdAt'] as const;
+/**
+ * `lastSeenAt` habilita el orden "Recently active" del listado de usuarios.
+ * Es nullable (un usuario que nunca se conectó lo tiene en `null`) y en Mongo
+ * `null` ordena por debajo de cualquier fecha, así que en `desc` esos usuarios
+ * quedan al final, que es lo que se espera de "actividad reciente".
+ */
+const SORTABLE_FIELDS = ['firstName', 'lastName', 'email', 'createdAt', 'lastSeenAt'] as const;
 type SortableField = (typeof SORTABLE_FIELDS)[number];
 
 export class QueryUsersDto {

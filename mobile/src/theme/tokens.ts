@@ -100,6 +100,12 @@ export const typography = {
   /** Fuera de la escala de 7 tokens del design system: tamaño específico
    * observado en el header de la pantalla de Conversación real (16px/600). */
   conversationHeaderName: { fontFamily: 'Inter_600SemiBold', fontSize: 16, lineHeight: 20, letterSpacing: 0 },
+  /** También fuera de la escala: el nombre de producto en la pantalla de
+   * Sign In se ve bastante más grande que `titleScreen` (que es el título de
+   * las pantallas internas). Medido sobre la captura de Stitch
+   * (docs/design/01-auth/sign-in-default-light.png), no sobre HTML — el MCP no
+   * devuelve el markup correcto de este módulo, ver el SPEC. */
+  titleAuth: { fontFamily: 'Inter_600SemiBold', fontSize: 28, lineHeight: 34, letterSpacing: -0.4 },
 } as const;
 
 /** Grid de 4pt de Stitch (`space-xs`…`space-xl`). */
@@ -148,6 +154,8 @@ export const sizes = {
   fab: 52,
   /** Offset inferior del FAB de "nuevo chat" (`bottom-[100px]` en el HTML real de Stitch — despeja el tab bar). */
   fabOffsetBottom: 100,
+  /** Marca de la app arriba del formulario de Sign In. */
+  authLogo: 72,
 } as const;
 
 /**

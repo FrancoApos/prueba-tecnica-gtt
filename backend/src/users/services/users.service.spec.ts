@@ -68,6 +68,26 @@ describe('UsersService', () => {
     expect(userModel.create).not.toHaveBeenCalled();
   });
 
+  it('passes the requested sort through to the query (incluye lastSeenAt, el orden "Recently active")', async () => {
+    const chain = {
+      sort: vi.fn().mockReturnThis(),
+      skip: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockReturnThis(),
+      exec: vi.fn().mockResolvedValue([]),
+    };
+    const userModel = {
+      find: vi.fn().mockReturnValue(chain),
+      countDocuments: vi.fn().mockResolvedValue(0),
+    };
+    const usersService = await setup(userModel);
+
+    await usersService.findAll({ page: 1, limit: 20, sortBy: 'lastSeenAt', sortOrder: 'desc' });
+    expect(chain.sort).toHaveBeenCalledWith({ lastSeenAt: -1 });
+
+    await usersService.findAll({ page: 1, limit: 20, sortBy: 'lastName', sortOrder: 'asc' });
+    expect(chain.sort).toHaveBeenLastCalledWith({ lastName: 1 });
+  });
+
   it('escapes regex metacharacters in the search filter (e.g. an unescaped "(" would 500 on an invalid regex)', async () => {
     const chain = {
       sort: vi.fn().mockReturnThis(),

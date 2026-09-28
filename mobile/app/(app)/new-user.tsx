@@ -16,6 +16,7 @@ import { z } from 'zod';
 import { ApiError } from '@/src/api/client';
 import { createUser } from '@/src/api/users';
 import { FormTextInput } from '@/src/components/FormTextInput';
+import { birthDateField, DATE_FORMAT_HINT, toApiDate } from '@/src/utils/date';
 import { colors, radii, sizes, spacing, typography } from '@/src/theme/tokens';
 
 const schema = z.object({
@@ -23,10 +24,7 @@ const schema = z.object({
   password: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres'),
   firstName: z.string().min(1, 'Requerido'),
   lastName: z.string().min(1, 'Requerido'),
-  birthDate: z
-    .string()
-    .min(1, 'Requerido')
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato AAAA-MM-DD'),
+  birthDate: birthDateField,
   phone: z.string().min(6, 'Teléfono inválido'),
 });
 
@@ -34,9 +32,12 @@ type FormValues = z.infer<typeof schema>;
 
 /**
  * Alta de usuario desde la app — usa el mismo `POST /users` público que el
- * seed y Swagger (no hay un endpoint "admin" de alta distinto). Visible para
- * cualquier autenticado, no solo admins: crear una cuenta no es una acción
- * sobre "otro" usuario existente, es la misma que hoy ya es pública.
+ * seed y Swagger (no hay un endpoint "admin" de alta distinto).
+ *
+ * A esta pantalla solo se llega desde el botón del header de Users, que se
+ * muestra únicamente con rol `admin`: administrar usuarios es una tarea de
+ * admin y no tiene sentido ofrecérsela al resto. El endpoint sigue siendo
+ * público (es el alta de cuenta), así que el gate es de UI y no de servidor.
  */
 export default function NewUserScreen() {
   const [serverError, setServerError] = useState<string | null>(null);
@@ -53,7 +54,7 @@ export default function NewUserScreen() {
   const onSubmit = async (values: FormValues) => {
     setServerError(null);
     try {
-      await createUser(values);
+      await createUser({ ...values, birthDate: toApiDate(values.birthDate) });
       router.back();
     } catch (err) {
       setServerError(err instanceof ApiError ? err.message : 'No pudimos crear el usuario');
@@ -131,7 +132,7 @@ export default function NewUserScreen() {
             render={({ field }) => (
               <FormTextInput
                 label="Fecha de nacimiento"
-                placeholder="AAAA-MM-DD"
+                placeholder={DATE_FORMAT_HINT}
                 value={field.value}
                 onChangeText={field.onChange}
                 onBlur={field.onBlur}

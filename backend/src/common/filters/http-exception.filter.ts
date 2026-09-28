@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
+import { Error as MongooseError } from 'mongoose';
 
 interface ErrorResponseBody {
   statusCode: number;
@@ -31,9 +32,17 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest<Request>();
 
     const isHttpException = exception instanceof HttpException;
+    // Un `CastError` de Mongoose es un id que no se puede convertir a
+    // ObjectId: el cliente mandó `/users/pepe`, no es una falla del servidor.
+    // Sin esta rama caía en el `else` de abajo y salía como 500, que se lee
+    // como un bug no controlado en vez de como "mandaste mal el id".
+    const isCastError = exception instanceof MongooseError.CastError;
+
     const statusCode = isHttpException
       ? exception.getStatus()
-      : HttpStatus.INTERNAL_SERVER_ERROR;
+      : isCastError
+        ? HttpStatus.BAD_REQUEST
+        : HttpStatus.INTERNAL_SERVER_ERROR;
 
     let message: string | string[] = 'Ocurrió un error inesperado';
     let error = 'Internal Server Error';
@@ -47,6 +56,11 @@ export class HttpExceptionFilter implements ExceptionFilter {
         message = b.message ?? exception.message;
         error = b.error ?? HttpStatus[statusCode];
       }
+    } else if (isCastError) {
+      // `exception.path` es el campo del schema que falló (`_id`, `chatId`…);
+      // el valor no se devuelve para no reflejar input crudo en la respuesta.
+      message = `El valor de "${exception.path}" no es un id válido`;
+      error = 'Bad Request';
     } else {
       this.logger.error(exception instanceof Error ? exception.stack : exception);
     }

@@ -3,7 +3,6 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Controller, useForm } from 'react-hook-form';
 import {
   ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -19,16 +18,15 @@ import { ApiError } from '@/src/api/client';
 import { Avatar } from '@/src/components/Avatar';
 import { FormTextInput } from '@/src/components/FormTextInput';
 import { useSessionStore } from '@/src/store/session';
+import { showChoice } from '@/src/utils/alert';
 import { colors, radii, sizes, spacing, typography } from '@/src/theme/tokens';
+import { birthDateField, DATE_FORMAT_HINT, toApiDate, toDisplayDate } from '@/src/utils/date';
 import { formatRelativeTimestamp } from '@/src/utils/format';
 
 const schema = z.object({
   firstName: z.string().min(1, 'Requerido'),
   lastName: z.string().min(1, 'Requerido'),
-  birthDate: z
-    .string()
-    .min(1, 'Requerido')
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato AAAA-MM-DD'),
+  birthDate: birthDateField,
   phone: z.string().min(6, 'Teléfono inválido'),
 });
 
@@ -51,7 +49,7 @@ export default function ProfileScreen() {
     defaultValues: {
       firstName: user?.firstName ?? '',
       lastName: user?.lastName ?? '',
-      birthDate: user?.birthDate.slice(0, 10) ?? '',
+      birthDate: user ? toDisplayDate(user.birthDate) : '',
       phone: user?.phone ?? '',
     },
   });
@@ -63,7 +61,7 @@ export default function ProfileScreen() {
   const onSubmit = async (values: FormValues) => {
     setFeedback(null);
     try {
-      const updated = await updateUser(user.id, values);
+      const updated = await updateUser(user.id, { ...values, birthDate: toApiDate(values.birthDate) });
       updateSessionUser(updated);
       setFeedback({ type: 'success', text: 'Perfil actualizado' });
     } catch (err) {
@@ -87,13 +85,13 @@ export default function ProfileScreen() {
   };
 
   const confirmDeleteAccount = () => {
-    Alert.alert(
+    // `showChoice` y no `Alert.alert` directo: el Alert de react-native-web es
+    // un no-op, así que en el browser este botón no hacía absolutamente nada
+    // (ver `src/utils/alert.web.ts`). El "Cancelar" lo agrega el helper.
+    showChoice(
       'Eliminar cuenta',
       'Esta acción no se puede deshacer. ¿Eliminar tu cuenta definitivamente?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Eliminar', style: 'destructive', onPress: () => void handleDeleteAccount() },
-      ],
+      [{ label: 'Eliminar', style: 'destructive', onPress: () => void handleDeleteAccount() }],
     );
   };
 
@@ -173,7 +171,7 @@ export default function ProfileScreen() {
             render={({ field }) => (
               <FormTextInput
                 label="Fecha de nacimiento"
-                placeholder="AAAA-MM-DD"
+                placeholder={DATE_FORMAT_HINT}
                 value={field.value}
                 onChangeText={field.onChange}
                 onBlur={field.onBlur}

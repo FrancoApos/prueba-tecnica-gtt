@@ -3,20 +3,33 @@ import type { OutgoingAttachment } from './messages';
 /**
  * Adjunta el archivo al FormData en runtime nativo.
  *
- * El shorthand documentado de RN (`form.append('file', { uri, name, type })`,
- * que deja que el bridge nativo lea el archivo por su cuenta) resultó frágil
- * en la práctica: con `expo-image-picker` funciona, pero con
- * `expo-document-picker` — probado con un .docx y un .pdf reales en un
- * iPhone físico, ambos casos — el bridge rechaza la parte con
- * "Unsupported FormDataPart implementation" incluso con una `uri` local
- * válida y no vacía. En vez de depender de ese camino, se lee el archivo acá
- * mismo con `fetch()` (RN soporta URIs `file://` en su XHR nativo) y se arma
- * un `File` real — mismo patrón que ya usa `attachment-form.web.ts`, sobre
- * el `Blob`/`File` que React Native expone como globals propios (ver
- * `Libraries/Core/setUpXHR.js`), no los del browser.
+ * Dos caminos descartados antes de llegar a este:
+ *
+ * 1. El shorthand de RN (`form.append('file', { uri, name, type })`) falla con
+ *    "Unsupported FormDataPart implementation": Expo reemplaza el `fetch` global
+ *    por `expo/fetch`, que serializa el multipart en JS
+ *    (`expo/src/winter/fetch/convertFormData.ts`) y solo entiende partes `string`,
+ *    `Blob` o algo con `.bytes()` — un `{ uri }` no es ninguna de las tres.
+ *
+ * 2. `new File([blob], name, { type })` explota con "Cannot assign to property
+ *    'name' which has only a getter". Expo también parchea `FormData.prototype.append`
+ *    (`expo/src/winter/FormData.ts`, `normalizeArgs`): si la parte es un Blob sin
+ *    `name` *propio*, le asigna uno. En el `File` de RN (`Libraries/Blob/File.js`)
+ *    `name` es un getter del **prototipo**, así que no hay descriptor propio, la
+ *    asignación sube por la cadena de prototipos, encuentra el accessor sin setter
+ *    y tira TypeError.
+ *
+ * Por eso acá se manda un `Blob` pelado — cuyo prototipo no tiene `name`, así que
+ * la asignación crea una propiedad propia sin problema — con el nombre puesto de
+ * las dos formas que los serializadores leen: como propiedad propia (lo que mira
+ * el `getParts()` de RN) y como tercer argumento de `append()`, que es la forma
+ * estándar y la que usa el parche de Expo. El `Blob` se re-envuelve con el
+ * `mimeType` del picker porque el que sale de `fetch('file://...')` no es confiable.
  */
 export async function appendAttachment(form: FormData, attachment: OutgoingAttachment): Promise<void> {
   const response = await fetch(attachment.uri);
   const blob = await response.blob();
-  form.append('file', new File([blob], attachment.name, { type: attachment.mimeType }));
+  const file = new Blob([blob], { type: attachment.mimeType });
+  Object.assign(file, { name: attachment.name });
+  form.append('file', file, attachment.name);
 }

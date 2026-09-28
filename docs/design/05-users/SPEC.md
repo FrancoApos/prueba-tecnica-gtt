@@ -22,7 +22,7 @@ Fuente: proyecto Stitch "Pulse Chat Design System" (`projects/960386960403168751
 - Fila de controles: dropdown "Sort: Name A-Z", chips "All / Online / Offline" (filtro por estado de conexión).
 - Contador "48 users" + "Synced just now" a la derecha.
 - Lista de usuarios: avatar + nombre + punto de estado + email, chevron ">" a la derecha (fila tappeable → detalle/edición).
-- **Paginación con botones "Previous / Page 2 of 7 / Next"** — nuestro backend ya devuelve `{ data, total, page, limit }`; la UI de paginación (botones, no scroll infinito) queda pendiente de construir.
+- **Paginación con botones "Previous / Page 2 of 7 / Next"** — implementada (botones "← Anterior / Página X de Y / Siguiente →", no scroll infinito), sobre el `{ data, total, page, limit }` que ya devolvía el backend.
 - Botón "+" flotante arriba a la derecha del header (alta de usuario) — más chico que el FAB circular de `02-chats`, integrado en el header en este caso.
 - Tab bar inferior de 3 tabs, con "Users" resaltado/activo.
 
@@ -32,7 +32,9 @@ Fuente: proyecto Stitch "Pulse Chat Design System" (`projects/960386960403168751
 - Opciones con radio button: "Name A-Z" (con ícono ↓A), "Name Z-A" (↑A), "Recently active" (reloj), "Newest first" (‹).
 - Botones "Cancel" (secundario) / "Apply Sort" (primario) al pie.
 
-**Nota de alcance:** nuestro backend soporta `sortBy` (firstName/lastName/email/createdAt) + `sortOrder` (asc/desc) — cubre "Name A-Z/Z-A" y "Newest first" (createdAt desc). "Recently active" necesitaría ordenar por `lastSeenAt`, que el modelo ya tiene pero el backend no expone todavía como campo de `sortBy` — ajuste menor si se implementa este sheet tal cual.
+**Estado: implementado** en `mobile/src/components/UsersSortSheet.tsx`, con las cuatro opciones del mock. "Recently active" requirió agregar `lastSeenAt` a los campos ordenables del backend (`SORTABLE_FIELDS` en `QueryUsersDto`); el campo ya existía en el modelo, lo usa la presencia.
+
+**Diferencias con el mock:** los textos van en español, como el resto de la app; y la etiqueta de la opción *no* seleccionada usa el color de texto normal en vez del índigo de marca que pinta Stitch en las cuatro (se lee mejor y es lo que hace el resto de la app). Los chips "All / Online / Offline" de la fila de controles siguen sin implementarse: filtrar por estado de conexión necesitaría un parámetro nuevo en el backend, que hoy no existe.
 
 ## Estructura — "New User" / "Edit User"
 

@@ -26,7 +26,7 @@ Fuente: proyecto Stitch "Pulse Chat Design System" (`projects/960386960403168751
 
 - Header con "X" (cerrar) a la izquierda, "Cancel"/"Save" a los costados del título — nuestra app usa un único botón "Guardar cambios" al pie en vez de un "Save" en el header; diferencia de layout, no de estilo.
 - Avatar con botón de cámara superpuesto + link "Change photo" + hint "JPG or PNG, up to 5MB" — **no implementado**: el backend solo acepta una URL para `avatarUrl`, no upload de archivo en el perfil (ver `docs/DECISIONS.md`).
-- Campos: First name, Last name, Email (con hint "Must be unique" — coincide con la validación real del backend), Date of birth (con ícono de calendario, sugiere un date picker nativo — nuestra implementación usa un `TextInput` de texto plano con formato `AAAA-MM-DD`, simplificación consciente, no hay `@react-native-community/datetimepicker` instalado), Phone.
+- Campos: First name, Last name, Email (con hint "Must be unique" — coincide con la validación real del backend), Date of birth (con ícono de calendario, sugiere un date picker nativo — nuestra implementación usa un `TextInput` de texto plano con formato `DD-MM-YYYY`, simplificación consciente, no hay `@react-native-community/datetimepicker` instalado), Phone.
 - **"Availability"**: segmented control de 2 botones (Online / Offline) en vez de un `Switch` — nosotros usamos `Switch` (componente nativo, misma función, distinto control visual). `TODO` si se quiere el 1:1 exacto.
 - Banner "Verified Profile" — no tiene equivalente en nuestro modelo de datos (no hay concepto de verificación), no implementado.
 

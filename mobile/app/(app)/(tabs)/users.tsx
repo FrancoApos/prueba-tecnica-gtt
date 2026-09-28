@@ -1,14 +1,22 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
 import { router, Stack, useFocusEffect } from 'expo-router';
-import { ActivityIndicator, Alert, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ApiError } from '@/src/api/client';
 import { deleteUser, listUsers } from '@/src/api/users';
 import { Avatar } from '@/src/components/Avatar';
 import { SkeletonRows } from '@/src/components/Skeleton';
+import {
+  DEFAULT_USERS_SORT,
+  UsersSortSheet,
+  usersSortLabel,
+  usersSortQuery,
+  type UsersSortKey,
+} from '@/src/components/UsersSortSheet';
 import { EmptyState, ErrorState } from '@/src/components/StateView';
 import { useChatsStore } from '@/src/store/chats';
 import { useSessionStore } from '@/src/store/session';
+import { showAlert, showChoice } from '@/src/utils/alert';
 import { colors, radii, spacing, typography } from '@/src/theme/tokens';
 import type { User } from '@/src/types/api';
 
@@ -18,15 +26,21 @@ const PAGE_SIZE = 20;
  * Directorio de usuarios (módulo obligatorio: "Creación, consulta,
  * actualización y eliminación de usuarios" + "Listado con filtro de texto,
  * paginado y ordenamiento"). Cualquiera puede ver el directorio y arrancar un
- * chat desde acá; editar/eliminar la cuenta de otro requiere rol "admin" —
- * el backend es quien realmente lo exige (RolesGuard), acá solo se ocultan
- * los botones para no ofrecer una acción que igual el server va a rechazar.
+ * chat desde acá; crear, editar y eliminar usuarios son acciones de admin y
+ * solo se muestran con ese rol. Para editar y eliminar el gate real es del
+ * backend (`RolesGuard`) y acá solo se ocultan los botones para no ofrecer una
+ * acción que el server va a rechazar igual. El alta no tiene gate de servidor:
+ * `POST /users` es público porque es el mismo endpoint de alta de cuenta (ver
+ * `docs/DECISIONS.md`), así que esconder el botón es coherencia de UI, no una
+ * barrera de seguridad.
  */
 export default function UsersScreen() {
   const currentUser = useSessionStore((s) => s.user);
   const startChat = useChatsStore((s) => s.startChat);
 
   const [search, setSearch] = useState('');
+  const [sort, setSort] = useState<UsersSortKey>(DEFAULT_USERS_SORT);
+  const [sortSheetOpen, setSortSheetOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [users, setUsers] = useState<User[]>([]);
   const [total, setTotal] = useState(0);
@@ -37,11 +51,41 @@ export default function UsersScreen() {
   const isAdmin = currentUser?.role === 'admin';
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
+  /**
+   * Memoizado a propósito, no por performance. El `<Screen>` de expo-router
+   * (`views/Screen.js`) mete `options` **por referencia** en las dependencias
+   * del layout effect que llama a `navigation.setOptions`. Un objeto literal
+   * inline es una referencia nueva en cada render, así que el efecto corría
+   * siempre; `setOptions` cambia el estado del navegador, eso re-renderiza la
+   * pantalla, y vuelta a empezar: "Maximum update depth exceeded". Con `title`
+   * solo no se notaba (react-navigation corta cuando las opciones resultantes
+   * son iguales), pero `headerRight` es una función nueva cada vez, así que
+   * nunca eran iguales y el ciclo no paraba.
+   */
+  const screenOptions = useMemo(
+    () => ({
+      title: 'Users',
+      headerRight: isAdmin
+        ? () => (
+            <Pressable onPress={() => router.push('/(app)/new-user')} hitSlop={12} testID="new-user-button">
+              <Ionicons name="person-add-outline" size={22} color={colors.primary} />
+            </Pressable>
+          )
+        : undefined,
+    }),
+    [isAdmin],
+  );
+
   const load = useCallback(async () => {
     setStatus('loading');
     setErrorMessage(null);
     try {
-      const result = await listUsers({ search: search.trim() || undefined, page, limit: PAGE_SIZE });
+      const result = await listUsers({
+        search: search.trim() || undefined,
+        page,
+        limit: PAGE_SIZE,
+        ...usersSortQuery(sort),
+      });
       setUsers(result.data);
       setTotal(result.total);
       setStatus('ready');
@@ -49,14 +93,15 @@ export default function UsersScreen() {
       setErrorMessage(err instanceof ApiError ? err.message : 'No pudimos cargar los usuarios');
       setStatus('error');
     }
-  }, [search, page]);
+  }, [search, page, sort]);
 
   useEffect(() => {
-    // Resetea la paginación cuando cambia el término de búsqueda — patrón
+    // Resetea la paginación cuando cambia la búsqueda o el orden: la página 3
+    // del listado anterior no tiene ningún significado en el nuevo. Patrón
     // estándar de "derivar estado de una prop que cambió" en un efecto.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPage(1);
-  }, [search]);
+  }, [search, sort]);
 
   useEffect(() => {
     // Patrón estándar de data fetching en un efecto; ver nota en useMessages.ts.
@@ -84,16 +129,18 @@ export default function UsersScreen() {
         },
       });
     } catch {
-      Alert.alert('No se pudo abrir el chat', 'Intentá de nuevo.');
+      showAlert('No se pudo abrir el chat', 'Intentá de nuevo.');
     } finally {
       setBusyId(null);
     }
   };
 
+  // Los avisos van por `showAlert`/`showChoice` y no por `Alert.alert`: el
+  // Alert de react-native-web es un no-op, así que en el browser el borrado
+  // quedaba mudo y el botón parecía muerto (ver `src/utils/alert.web.ts`).
   const confirmDelete = (user: User) => {
-    Alert.alert('Eliminar usuario', `¿Eliminar la cuenta de ${user.firstName} ${user.lastName}?`, [
-      { text: 'Cancelar', style: 'cancel' },
-      { text: 'Eliminar', style: 'destructive', onPress: () => void handleDelete(user) },
+    showChoice('Eliminar usuario', `¿Eliminar la cuenta de ${user.firstName} ${user.lastName}?`, [
+      { label: 'Eliminar', style: 'destructive', onPress: () => void handleDelete(user) },
     ]);
   };
 
@@ -104,7 +151,7 @@ export default function UsersScreen() {
       setUsers((prev) => prev.filter((u) => u.id !== user.id));
       setTotal((prev) => prev - 1);
     } catch (err) {
-      Alert.alert('No se pudo eliminar', err instanceof ApiError ? err.message : 'Intentá de nuevo.');
+      showAlert('No se pudo eliminar', err instanceof ApiError ? err.message : 'Intentá de nuevo.');
     } finally {
       setBusyId(null);
     }
@@ -112,16 +159,7 @@ export default function UsersScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen
-        options={{
-          title: 'Users',
-          headerRight: () => (
-            <Pressable onPress={() => router.push('/(app)/new-user')} hitSlop={12} testID="new-user-button">
-              <Ionicons name="person-add-outline" size={22} color={colors.primary} />
-            </Pressable>
-          ),
-        }}
-      />
+      <Stack.Screen options={screenOptions} />
 
       <TextInput
         style={styles.search}
@@ -133,9 +171,20 @@ export default function UsersScreen() {
       />
 
       {status === 'ready' && total > 0 && (
-        <Text style={styles.count} testID="users-count">
-          {total} {total === 1 ? 'usuario' : 'usuarios'}
-        </Text>
+        <View style={styles.controls}>
+          <Text style={styles.count} testID="users-count">
+            {total} {total === 1 ? 'usuario' : 'usuarios'}
+          </Text>
+          <Pressable
+            style={styles.sortTrigger}
+            onPress={() => setSortSheetOpen(true)}
+            testID="users-sort-trigger"
+          >
+            <Ionicons name="swap-vertical-outline" size={16} color={colors.primary} />
+            <Text style={styles.sortTriggerLabel}>{usersSortLabel(sort)}</Text>
+            <Ionicons name="chevron-down" size={14} color={colors.primary} />
+          </Pressable>
+        </View>
       )}
 
       {status === 'loading' && users.length === 0 && <SkeletonRows avatarSize={44} rowHeight={68} />}
@@ -212,6 +261,16 @@ export default function UsersScreen() {
           </Pressable>
         </View>
       )}
+
+      <UsersSortSheet
+        visible={sortSheetOpen}
+        value={sort}
+        onApply={(key) => {
+          setSort(key);
+          setSortSheetOpen(false);
+        }}
+        onClose={() => setSortSheetOpen(false)}
+      />
     </View>
   );
 }
@@ -232,11 +291,29 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceContainerLow,
     color: colors.textPrimary,
   },
+  controls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+  },
   count: {
     ...typography.caption,
     color: colors.textTertiary,
-    marginHorizontal: spacing.lg,
-    marginBottom: spacing.xs,
+  },
+  sortTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    borderRadius: radii.pill,
+    backgroundColor: colors.surfaceContainer,
+  },
+  sortTriggerLabel: {
+    ...typography.captionMedium,
+    color: colors.primary,
   },
   row: {
     flexDirection: 'row',

@@ -1,5 +1,4 @@
 import { mkdirSync } from 'node:fs';
-import { join } from 'node:path';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { NestExpressApplication } from '@nestjs/platform-express';
@@ -9,27 +8,17 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
 /**
  * Configuración compartida entre `main.ts` (runtime real) y los tests e2e,
  * para que un test ejercite exactamente el mismo comportamiento que
- * producción (validaciones, shape de errores, CORS, estáticos).
+ * producción (validaciones, shape de errores, CORS, carpeta de adjuntos).
  */
 export function setupApp(app: NestExpressApplication): void {
   const configService = app.get(ConfigService);
 
+  // Se crea la carpeta de adjuntos por si no existe: multer escribe acá
+  // (ver `messages.module.ts`) y falla si el destino no está. Los archivos NO
+  // se sirven como estáticos — los sirve `AttachmentsController`, que es el que
+  // sabe el nombre original de cada uno (ver el comentario de esa clase).
   const uploadsDir = configService.get<string>('uploadsDir') ?? 'uploads';
   mkdirSync(uploadsDir, { recursive: true });
-  app.useStaticAssets(join(process.cwd(), uploadsDir), {
-    prefix: '/uploads/',
-    // Los adjuntos no tienen restricción de tipo (la consigna solo pide poder
-    // subir imagen o archivo): sin esto, un .html/.svg subido como adjunto se
-    // serviría con su Content-Type real y, abierto directo en un browser, un
-    // <script> embebido correría en el origen de la API (XSS almacenado). Con
-    // `attachment` el browser siempre lo descarga en vez de renderizarlo —
-    // no afecta a las imágenes, que la app carga como <Image>/subrecurso, no
-    // como navegación de página (ahí el navegador ignora Content-Disposition).
-    setHeaders: (res) => {
-      res.setHeader('Content-Disposition', 'attachment');
-      res.setHeader('X-Content-Type-Options', 'nosniff');
-    },
-  });
 
   app.useGlobalPipes(
     new ValidationPipe({

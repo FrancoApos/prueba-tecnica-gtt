@@ -135,7 +135,9 @@ Registro de decisiones de arquitectura y su justificación (formato ADR simplifi
 
 **Por qué esta forma y no otra:** mantiene un único flujo de login (cumple la consigna literal), es ~40 líneas de NestJS bien acotadas, y el criterio "Backend" (25% de la nota) lista explícitamente autenticación/validaciones — un guard de autorización correcto demuestra ese criterio sin inflar el alcance con una pantalla/seed/flujo de admin aparte.
 
-**Mobile:** la pantalla de Users (`app/(app)/(tabs)/users.tsx`, `app/(app)/edit-user.tsx`) se muestra siempre — es el directorio para iniciar chats con cualquiera. Los botones de editar/eliminar en la fila de **otro** usuario se ocultan si `user.role !== 'admin'`; la autorización real sigue siendo del lado del servidor (RolesGuard), esto es solo para no ofrecer una acción que el backend va a rechazar igual.
+**Mobile:** la pantalla de Users (`app/(app)/(tabs)/users.tsx`, `app/(app)/edit-user.tsx`) se muestra siempre — es el directorio para iniciar chats con cualquiera. Las tres acciones de administración se muestran solo con rol `admin`: editar y eliminar en la fila de **otro** usuario, y el botón de alta en el header (actualizado el 2026-09-27; antes el alta estaba visible para cualquier autenticado).
+
+Para editar y eliminar, la autorización real es del servidor (`RolesGuard`) y ocultar los botones solo evita ofrecer una acción que el backend va a rechazar igual. **El alta no tiene equivalente en el servidor**: `POST /users` es público a propósito, porque es el mismo endpoint de alta de cuenta que usan el seed y Swagger, así que esconder el botón es coherencia de UI y no una barrera. Como la app no tiene pantalla de registro para alguien deslogueado, esto deja al admin como el único camino para crear un usuario **desde la app** — el endpoint público sigue disponible para el seed, Swagger o un cliente futuro.
 
 **Alternativas descartadas:** login/sesión de admin separada (contradice "un login, redirige a chats"); dejar el directorio de solo lectura sin rol alguno (no cumpliría "actualización y eliminación de usuarios" tal como lo interpretó el mock de Stitch, que sí es parte de la consigna).
 
@@ -186,3 +188,179 @@ Registro de decisiones de arquitectura y su justificación (formato ADR simplifi
 **Alcance dejado afuera:** indicador de "escribiendo…", recibos de lectura, y presencia con más de una instancia del backend (el `Map` es en memoria — con varias instancias haría falta el adapter de Redis, igual que las rooms).
 
 **Verificado** con un script contra el backend real: Bruno observa y recibe `online` cuando Ana conecta; cerrar **una** de las dos sesiones de Ana **no** dispara `offline`; cerrar la última sí, y queda persistido con `lastSeenAt`; y el `PATCH` manual del perfil también le llega en vivo.
+
+## 2026-09-27 — El teclado de la conversación no usa `KeyboardAvoidingView`
+
+**Contexto:** en el iPhone el teclado tapaba la barra de escribir de la conversación: quedaba visible apenas la mitad superior del input.
+
+**Causa:** `KeyboardAvoidingView` mide su propio frame con `onLayout`, o sea **relativo al padre**. En una pantalla con header nativo la `y` le da 0 aunque en pantalla arranque debajo del header, así que el padding que calcula queda corto exactamente en el alto del header. Esa diferencia se compensa a mano con `keyboardVerticalOffset`, que estaba fijo en `90` — menos que el header real de la conversación, que es custom (avatar + nombre + estado) y encima varía con el notch de cada equipo. Cualquier constante ahí acierta en un teléfono y falla en el siguiente.
+
+**Decisión:** la pantalla de conversación deja de usar `KeyboardAvoidingView` y toma el hueco del **alto del teclado** que reporta el propio evento (`src/hooks/useKeyboardHeight.ts`), que ya viene medido contra la pantalla y por lo tanto no depende de nada de lo que haya arriba. Como la barra vive pegada al borde inferior, alcanza con `paddingBottom` de ese alto. El hook escucha `keyboardWillShow`/`keyboardWillHide` y replica duración y curva con `LayoutAnimation`, para que la barra suba junto con el teclado y no después.
+
+**Solo iOS:** en Android el sistema ya redimensiona la ventana (`adjustResize`) y sumar padding lo duplicaría. El hook devuelve 0 fuera de iOS.
+
+**De paso:** con el teclado cerrado la barra ahora respeta el área del home indicator (`insets.bottom`); con el teclado abierto no hace falta porque la cubre el teclado. Y al abrirse el teclado la lista hace `scrollToEnd`: como el área visible se achica, si no los últimos mensajes quedaban tapados.
+
+**No se tocaron** los formularios (perfil, editar/nuevo usuario), que siguen con `KeyboardAvoidingView` y `offset` 0: son pantallas con scroll donde el faltante del header no llega a esconder el campo enfocado.
+
+## 2026-09-27 — La fecha de nacimiento se muestra y se tipea en DD-MM-YYYY
+
+**Contexto:** los tres formularios con fecha de nacimiento (alta de usuario, edición de usuario y perfil propio) pedían el dato en `AAAA-MM-DD`, que es el formato del contrato HTTP y no el que se usa acá para escribir una fecha.
+
+**Decisión:** el cambio es solo de presentación. La API sigue hablando ISO 8601 (el backend valida con `@IsDateString` y Mongo guarda un `Date`); la conversión vive en `mobile/src/utils/date.ts` y se aplica en los bordes: `toDisplayDate` al cargar el formulario y `toApiDate` al enviarlo. No se tocó ni el backend ni el seed.
+
+**El formato se corta del string ISO, no se pasa por `new Date`:** la fecha se guarda a medianoche UTC, así que interpretarla en hora local la correría un día para todo el que esté al oeste de Greenwich — en Argentina (UTC-3) todas las fechas se verían un día antes.
+
+**Validación:** el mismo archivo exporta `birthDateField`, el campo de zod compartido por las tres pantallas, así que el formato y su mensaje no se duplican. Además de la forma valida que la fecha exista: `31-02-1995` se rechaza con "Esa fecha no existe", que antes pasaba el regex y moría en el backend.
+
+**Sigue afuera:** el date picker nativo que sugiere el diseño (ver `docs/design/04-profile/SPEC.md`) — no hay `@react-native-community/datetimepicker` instalado y el input de texto alcanza.
+
+## 2026-09-27 — Adjuntos en nativo: se manda un `Blob` con nombre, no un `File`
+
+**Contexto:** mandar un `.docx` desde el iPhone fallaba con `Cannot assign to property 'name' which has only a getter`. El adjunto nunca salía.
+
+**Causa:** dos polyfills que no se hablan. Expo parchea `FormData.prototype.append` (`expo/src/winter/FormData.ts`, `normalizeArgs`) y, si la parte es un `Blob` que no tiene `name` **propio**, le asigna uno. En el `File` de React Native (`Libraries/Blob/File.js`) `name` es un getter del **prototipo**, así que no hay descriptor propio: Expo entra por esa rama, la asignación sube por la cadena de prototipos, encuentra el accessor sin setter y Hermes tira `TypeError`.
+
+**Decisión:** `mobile/src/api/attachment-form.ts` manda un `Blob` pelado — cuyo prototipo no define `name`, así que la asignación de Expo crea una propiedad propia sin problema — re-envuelto con el `mimeType` del picker, porque el tipo que sale de `fetch('file://…')` no es confiable. El nombre se pone de las **dos** formas que leen los serializadores: como propiedad propia (lo que mira `getParts()` de RN) y como tercer argumento de `append()` (lo estándar, y lo que usa el parche de Expo). Así no depende de cuál de los dos caminos esté activo.
+
+**Por qué no el shorthand de RN** (`append('file', { uri, name, type })`): Expo también reemplaza el `fetch` global por `expo/fetch`, que serializa el multipart en JS (`expo/src/winter/fetch/convertFormData.ts`) y solo entiende partes `string`, `Blob` o algo con `.bytes()`. Un `{ uri }` no es ninguna de las tres y muere con "Unsupported FormDataPart implementation".
+
+**La variante web no cambió:** en el browser `File` y `FormData` son los nativos y Expo no los parchea (`installFormDataPatch` solo se llama en `runtime.native.ts`).
+
+## 2026-09-27 — Los adjuntos los sirve un controller, no `useStaticAssets`
+
+**Contexto:** el archivo se bajaba con el nombre del disco (`46a2965d-….docx`) en vez del original.
+
+**Causa:** los adjuntos se guardan con un UUID como nombre (para no colisionar ni depender de lo que el usuario haya llamado al archivo), y el servidor de estáticos solo conoce ese nombre. El `Content-Disposition: attachment` salía **sin** `filename`, así que el browser caía al último segmento de la URL. El nombre original sí estaba guardado, pero en la base (`attachment.filename`), que el estático no consulta.
+
+**Decisión:** `AttachmentsController` (`GET /uploads/:storedName`) reemplaza a `useStaticAssets`. Busca el mensaje por su `attachment.url`, y sirve el archivo con `res.download(path, attachment.filename)`, que arma el `Content-Disposition` correcto (express agrega el `filename*=UTF-8''…` de RFC 6266 cuando el nombre se sale de latin1). La URL pública no cambió, así que el cliente no se tocó.
+
+**Se mantienen las dos protecciones que tenía el estático:** `attachment` (un .html/.svg subido como adjunto se baja en vez de renderizarse en el origen de la API, que sería XSS almacenado) y `nosniff`. El `Content-Type` ahora sale de lo que guardó la base, no de la extensión del archivo en disco.
+
+**El path nunca se arma con el segmento crudo de la URL:** se usa el `basename` de la URL que guardó el propio servidor (un UUID generado acá), recién después de que la consulta a la base encontró el mensaje. Un `..%2f..` en la request no llega a tocar el filesystem.
+
+**Sigue público, sin `JwtAuthGuard`,** igual que el estático que reemplaza: las imágenes se cargan con `<Image>`, que no puede mandar el header `Authorization`. Lo único que protege un adjunto es que la URL lleva un UUID aleatorio. Queda anotado como límite conocido.
+
+**De paso — el nombre llegaba percent-encodeado:** `expo/fetch` pasa el filename por `encodeURIComponent` antes de ponerlo en el header (`encodeFilename`), así que "Informe final.docx" llegaba como "Informe%20final.docx". `decodeAttachmentName` en `messages.service.ts` lo decodifica, con fallback al valor crudo si no es una secuencia válida (un archivo llamado "50%.pdf" subido desde la web, por ejemplo). Como `encodeURIComponent` también encodea el no-ASCII, esto además arregla los acentos: sin decodificar, multer lee el header en latin1 y una "ñ" salía como "Ã±".
+
+## 2026-09-27 — La pantalla de Sign In se alineó con la captura de Stitch
+
+**Contexto:** la pantalla funcionaba pero se veía pobre al lado del resto de la app: título pegado a la izquierda, sin marca arriba, campos sin los íconos del diseño y un banner de error que era un rectángulo de texto.
+
+**Decisión:** en vez de inventar un estilo nuevo, se implementó lo que ya estaba documentado y sin hacer en `docs/design/01-auth/SPEC.md` (capturas de Stitch bajadas por MCP): marca centrada arriba, título y subtítulo centrados, íconos de sobre y candado adentro de los campos, flecha en el botón primario y banner de error con ícono y botón de cerrar. Lo que el mock tiene y la consigna no pide sigue afuera: "Forgot password?" (no hay flujo de recuperación) y "Sign up" (no hay registro).
+
+**La marca es un ícono, no un asset:** `assets/icon.png` es todavía el ícono por defecto del template de Expo (una "A" azul ajena a la paleta). Se dibuja un cuadrado redondeado con `colors.primaryContainer` y una burbuja de chat encima, así la pantalla queda consistente con los tokens en vez de depender de un logo que el proyecto no tiene.
+
+**Dos tokens nuevos**, `typography.titleAuth` y `sizes.authLogo`, marcados en `tokens.ts` como medidos sobre la captura y no sobre HTML — para este módulo el MCP de Stitch devuelve markup de otra pantalla (ver la nota de método del SPEC), así que es lo más firme que hay.
+
+**Alcance:** `FormTextInput` ganó un `icon` opcional y el ícono de error a la derecha, así que el detalle de error del diseño (borde rojo + "x" + alerta debajo) aplica también a los formularios de perfil y de usuarios, que comparten el componente. Los íconos por campo, en cambio, se usan solo en Sign In: son los dos que la captura define.
+
+**Un test cambió:** `sign-in-error.test.tsx` afirmaba el mensaje con `toHaveTextContent` sobre el contenedor del banner; ahora el banner tiene íconos, que son glifos de fuente y entran en ese texto concatenado. Pasa a buscar el texto del mensaje, que es lo que el test quería verificar.
+
+## 2026-09-27 — Manejo de sesión: JWT stateless, sin refresh token
+
+**Contexto:** la consigna pide, textualmente, "mecanismo de autenticación y manejo de sesión", sin definir cuál. Estaba implementado pero nunca documentado como decisión: quedaba a que el evaluador lo dedujera leyendo el código.
+
+**Decisión:** sesión enteramente **stateless** sobre un único JWT firmado con HS256, sin refresh token y sin registro de sesiones en la base.
+
+- **Emisión:** `POST /auth/login` devuelve `{ accessToken, user }`. El payload lleva `sub` (id), `email` y `role` — nada sensible, y el `role` viaja adentro para que `RolesGuard` no tenga que ir a la base en cada request.
+- **Vigencia:** `JWT_EXPIRES_IN`, default `1d`. Suficientemente largo para que el evaluador no tenga que reloguear mientras prueba, suficientemente corto para que un token filtrado no sea eterno.
+- **Transporte:** header `Authorization: Bearer <token>` en REST, y el **mismo** token en el handshake de Socket.IO (`handshake.auth.token`). Un solo mecanismo, un solo lugar donde puede estar mal.
+- **Persistencia en el cliente:** `expo-secure-store` (Keychain/Keystore), no AsyncStorage. Al abrir la app, `hydrate()` lee token + usuario y el `status` del store arranca en `'loading'`, así `Stack.Protected` no muestra el login un instante antes de resolver.
+- **Expiración en caliente:** un 401 en cualquier request autenticada (o un socket rechazado) dispara logout + el banner "Tu sesión expiró" en el login. Es el único camino por el que la sesión se cierra sola.
+
+**Por qué stateless y no sesiones en base:** un store de sesiones (o refresh tokens rotativos) agrega una colección, su invalidación y un endpoint de refresh — y el beneficio real, poder revocar antes del vencimiento, no aplica a nada que la consigna pida. El costo se paga en un solo punto, documentado abajo.
+
+**Límite conocido — el logout no revoca nada:** `logout()` borra el token del dispositivo y corta el socket, pero el JWT sigue siendo válido contra la API hasta que venza. Es inherente a una sesión stateless: si el token ya fue copiado del dispositivo, cerrar sesión no lo apaga. Con refresh tokens se resolvería guardando un `jti` o un `tokenVersion` por usuario y rechazando los emitidos antes del logout — un campo en `users` y un chequeo en `JwtStrategy`. No se hizo por lo de arriba.
+
+**Límite conocido — `hydrate()` confía en el token guardado:** no lo valida contra la API al arrancar. Si venció con la app cerrada, se ve un instante el listado de chats hasta que el primer request devuelve 401 y rebota al login (con el banner, así que no es un cierre silencioso). La alternativa era un `GET /users/me` bloqueante en cada arranque: agrega latencia a todos los arranques para mejorar el caso raro.
+
+**Alternativas consideradas:** refresh token + access token corto (lo correcto para una app real con sesiones largas, alcance no pedido acá); sesión con cookie `httpOnly` (no aplica: el cliente es React Native, no un browser, y el socket necesita el token explícito).
+
+## 2026-09-27 — El secreto de firma nunca cae a un default conocido
+
+**Contexto:** `configuration.ts` resolvía el secreto como `process.env.JWT_SECRET ?? 'dev-secret-change-me'`, y `docker-compose.yml` inyectaba ese mismo string como default. Si el `.env` no se cargaba, el backend arrancaba **normal**, sin ninguna señal, firmando con un valor que está publicado en un repo público. Cualquiera que lea el repo puede forjar un JWT válido para cualquier usuario, incluido el `admin` del seed: es el agujero de autenticación más grave que tenía el proyecto, y era invisible.
+
+**Decisión:** sin un `JWT_SECRET` usable, el backend genera un secreto **random de 32 bytes para ese proceso** y lo avisa por log. Los dos placeholders que viven en el repo (`dev-secret-change-me` y el `replace-with-a-long-random-secret` de `.env.example`) se tratan igual que si la variable no estuviera: no son secretos. El valor generado se memoiza a nivel de módulo — un random distinto por llamada haría que `JwtModule` firme con uno y `JwtStrategy` verifique con otro, y no entraría ningún token.
+
+**Por qué no cortar el arranque,** que sería el reflejo de "fail fast": el único modo de fallar útil sería colgarse de `NODE_ENV === 'production'`, y en este proyecto esa variable **no significa "deploy real"** — el Dockerfile la setea para `npm ci --omit=dev`, y esa es la misma imagen que corre `docker compose up`, el camino de un comando con el que se prueba la entrega. Un throw ahí rompería la instalación limpia del evaluador por una variable que no tiene por qué definir. El secreto random deja el arranque funcionando y mueve el costo a algo visible y acotado: los tokens ya emitidos dejan de valer en cada reinicio, con el log diciendo exactamente por qué. Lo que importaba era que no exista un secreto **adivinable**, y eso se cumple en los dos casos.
+
+**`docker-compose.yml` dejó de inyectar el placeholder** (`JWT_SECRET: ${JWT_SECRET:-}`): ahora exportar `JWT_SECRET` antes de `docker compose up` es lo único que hace que la sesión sobreviva un reinicio del contenedor, y está comentado ahí mismo. Ya no hay ningún secreto de firma escrito en el repo.
+
+**Cubierto por tests** (`src/config/configuration.spec.ts`): que un valor real pase intacto y sin warning, que la ausencia no caiga nunca al string viejo, que los dos placeholders se rechacen, y que el generado sea estable dentro del proceso.
+
+## 2026-09-27 — Login no valida el largo de la contraseña
+
+**Contexto:** `LoginDto` tenía `@MinLength(8)` en `password`, espejado en el `zod` de la pantalla de Sign In. Con una contraseña de menos de 8 caracteres, `POST /auth/login` devolvía **400 "La contraseña debe tener al menos 8 caracteres"** en vez del 401 genérico.
+
+**Decisión:** en login la contraseña solo se exige presente (`@IsNotEmpty()`). La política de largo se valida donde se define, en `CreateUserDto` (el alta de cuenta), que es el único lugar que la aplica de verdad.
+
+**Por qué:** eran dos problemas en una línea. Uno, le publica la política de contraseñas a alguien sin autenticar. Dos, y más importante, rompe la propiedad que el resto del flujo cuida con cuidado: `AuthService` devuelve el mismo `"Credenciales inválidas"` para email inexistente y para password incorrecta, justamente para no dar señal de qué falló — y el DTO, un paso antes, distinguía por formato. Para quien intenta entrar, "demasiado corta" y "incorrecta" son el mismo hecho: no entraste. Validar el largo en login también implicaría que si la política sube a 12, todas las cuentas viejas dejarían de poder loguear con un error de validación en vez de poder cambiar su contraseña.
+
+**Se espejó en el mobile:** el `zod` de `app/sign-in.tsx` pasa a `min(1, 'Ingresá tu contraseña')`. El mensaje viejo aparecía en la pantalla de login, que es el lugar donde menos sirve. `app/(app)/new-user.tsx` (alta de cuenta) mantiene el `min(8)` sin cambios.
+
+**Cubierto por tests:** el e2e agrega que una contraseña corta devuelve **401** (no 400) y que una vacía sí devuelve 400 — no hay nada que comparar. El test de la pantalla de Sign In ahora afirma también el mensaje del campo de contraseña vacío, que es el caso cuyo comportamiento cambió.
+
+## 2026-09-27 — El orden del listado de Users se resuelve en el servidor, no en el cliente
+
+**Contexto:** la consigna pide, para el listado de usuarios, "filtro de texto, **paginado y ordenamiento**". El filtro y el paginado estaban; el ordenamiento existía en el backend (`sortBy`/`sortOrder` en `QueryUsersDto`) pero la app no lo exponía, así que el requisito estaba a medio cumplir.
+
+**Decisión:** la hoja modal (`mobile/src/components/UsersSortSheet.tsx`) no reordena nada en memoria: traduce la opción elegida a un par `sortBy`/`sortOrder` y vuelve a pedir la **página 1** al servidor. Ordenar del lado del cliente solo reordenaría los 20 usuarios de la página actual, que con paginado es directamente un orden incorrecto — la opción "Nombre Z–A" tiene que traer a los últimos del padrón, no dar vuelta los que ya estaban a la vista.
+
+**Cambiar el orden resetea la página**, igual que cambiar la búsqueda: la página 3 del listado anterior no significa nada en el nuevo.
+
+**`lastSeenAt` se agregó a los campos ordenables** del backend para cubrir la opción "Actividad reciente" del mock. El campo ya existía en el modelo (lo mantiene la presencia). Es nullable, y en Mongo `null` ordena por debajo de cualquier fecha, así que en `desc` los usuarios que nunca se conectaron quedan al final — que es lo que se espera de ese orden.
+
+**La selección es en borrador:** tocar una opción no aplica nada hasta "Aplicar orden", porque el mock tiene botones Cancel/Apply al pie. Por eso el estado vive en la hoja y no en la pantalla, y se resetea al valor aplicado en cada apertura (`onShow` del `Modal`): cancelar y volver a abrir no arrastra lo que se había tocado antes.
+
+**El default del cliente es el mismo que el del backend** (`lastName` asc): así el primer render no dispara un reordenamiento contra lo que el server ya iba a devolver. Hay un test que fija justamente eso, para que los dos defaults no se separen en silencio.
+
+**Fuera de alcance:** los chips "All / Online / Offline" del mismo mock (filtrar por estado de conexión) necesitarían un parámetro nuevo en el backend, que hoy no existe, y no los pide la consigna. Anotado en `docs/PROGRESS.md`.
+
+## 2026-09-27 — Las `options` de `<Stack.Screen>` se memoizan (loop de render en Users)
+
+**Contexto:** entrar al tab Users terminaba en "Maximum update depth exceeded". El stack de error apuntaba al `<Stack>` de `app/(app)/_layout.tsx`, no a la pantalla, lo que despistaba: el layout no tenía nada raro.
+
+**Causa:** el `<Screen>` de expo-router (`node_modules/expo-router/build/views/Screen.js`) mete `options` **por referencia** en las dependencias del layout effect que llama a `navigation.setOptions`:
+
+```js
+useSafeLayoutEffect(() => {
+  if (options && Object.keys(options).length) { navigation.setOptions(options); }
+}, [isFocused, isPreloaded, navigation, options]);
+```
+
+`users.tsx` le pasaba un objeto literal inline, o sea una referencia nueva en cada render. El efecto corría siempre, `setOptions` cambiaba el estado del navegador, eso re-renderizaba la pantalla, y vuelta a empezar.
+
+**Por qué en Users y no en Chats**, que usa el mismo patrón (`<Stack.Screen options={{ title: 'Chats' }} />`): react-navigation corta el ciclo cuando las opciones resultantes son equivalentes, y `'Chats'` es el mismo string siempre. Users pasaba además un `headerRight: () => (...)`, una **función nueva en cada render**, que nunca compara igual — el ciclo no se cerraba nunca. Es un footgun latente en cualquier pantalla que ponga una función en `options` inline.
+
+**Decisión:** las `options` se arman con `useMemo` con el rol como única dependencia, así `setOptions` corre una vez y no una por render. No es una optimización: sin eso la pantalla no funciona.
+
+**No está relacionado con quién ve el botón.** El loop pasaba igual con un admin logueado (el `headerRight` era el mismo para todos); el síntoma apareció mientras se probaba con un usuario común, pero esconder el botón no habría arreglado nada — solo habría movido el crash al admin, que es justamente quien lo necesita. Las dos cosas se corrigieron juntas pero son independientes.
+
+## 2026-09-27 — Un id malformado devuelve 400, no 500
+
+**Contexto:** `GET /users/no-es-un-objectid` devolvía **500 "Ocurrió un error inesperado"**. Igual `GET /chats/abc/messages`. Lo encontró la auditoría de cumplimiento contra la consigna, probando la API real: no había validación de formato de ObjectId en ningún punto del backend.
+
+**Causa:** cuando Mongoose no puede convertir un string a `ObjectId` tira un `CastError`, que no es una `HttpException`. El filtro global (`http-exception.filter.ts`) lo tomaba por la rama de "error no controlado" y lo reportaba como 500.
+
+**Decisión:** el filtro reconoce `MongooseError.CastError` y lo mapea a **400 Bad Request**, con el mensaje `El valor de "<campo>" no es un id válido`.
+
+**Por qué en el filtro y no con un pipe por ruta:** un `ParseObjectIdPipe` habría que acordarse de aplicarlo en cada `:id`, `:chatId` y en cualquier ruta futura — el día que uno se olvide, vuelve el 500 en silencio. En el filtro es un solo punto que cubre todas las rutas actuales y las que vengan, incluido el caso en que el id malformado no venga de un parámetro de ruta sino del body o de una query.
+
+**El valor crudo no se devuelve:** el mensaje nombra el campo que falló (`_id`, `chatId`), no lo que mandó el cliente. Reflejar input sin tratar en una respuesta de error es un hábito que no vale la pena tener, aunque acá el `Content-Type` sea JSON y el riesgo concreto sea bajo.
+
+**Un caso queda en 403 y es correcto:** `PATCH /users/abc` sigue devolviendo 403 en vez de 400, porque `RolesGuard` corre **antes** — en el pipeline de Nest los guards van antes que pipes y filtros, así que la autorización se resuelve primero. No se cambió: un id ajeno malformado no tiene por qué revelar más que uno ajeno bien formado.
+
+**Cubierto por tests:** `http-exception.filter.spec.ts` (5 casos: passthrough de `HttpException`, mapeo a 400, que no filtre el valor crudo, que un error inesperado siga siendo 500 sin stack, y que el shape sea siempre el mismo) y el e2e, que lo afirma contra la app real en las dos rutas.
+
+## 2026-09-27 — Todos los avisos pasan por `showAlert`/`showChoice`
+
+**Contexto:** cuatro llamadas usaban `Alert.alert` de react-native directo — `profile.tsx` (confirmación de eliminar cuenta), `users.tsx` (confirmación de eliminar usuario y dos avisos de error). En el target web eso no hace **nada**: el `Alert` de react-native-web es literalmente `class Alert { static alert() {} }` (verificado en `node_modules/react-native-web/dist/exports/Alert/index.js`).
+
+**Consecuencia real:** corriendo la app en el browser, "Eliminar cuenta" y "Eliminar usuario" eran botones muertos — el diálogo nunca aparecía, así que el `onPress` de confirmación nunca corría — y dos errores se tragaban en silencio. El README propone el browser como segundo cliente para probar el chat en vivo, así que es un camino que se recorre de verdad.
+
+**Decisión:** las cuatro pasan por `showAlert`/`showChoice` (`src/utils/alert.ts`), que ya existían **exactamente por este motivo** y tienen su variante `.web` con `confirm()` encadenado. No se agregó nada nuevo: se terminó de aplicar una solución que el proyecto ya había tomado y que estas cuatro llamadas se habían salteado.
+
+**`Choice` ganó un `style?: 'destructive'` opcional** para no perder el rojo de iOS en las dos confirmaciones de borrado. La variante web lo declara y lo ignora, así las dos implementaciones mantienen la misma firma.
+
+**El "Cancelar" ya no se escribe a mano:** `showChoice` lo agrega siempre, así que cada confirmación declara solo su acción afirmativa. Es una llamada más corta y no se puede olvidar el botón de salida.
