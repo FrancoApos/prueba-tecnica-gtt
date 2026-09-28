@@ -3,7 +3,11 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { MongoMemoryServer } from 'mongodb-memory-server';
 import request from 'supertest';
-import type { App } from 'supertest/types';
+// El server HTTP que expone `getHttpServer()`. Antes esto importaba `App` de
+// 'supertest/types', que con `moduleResolution: nodenext` no resuelve:
+// supertest no declara ese subpath en sus `exports` (venía del template de
+// Nest, que usaba la resolución clásica). `http.Server` es el tipo real.
+import type { Server } from 'node:http';
 import { AppModule } from '../src/app.module.js';
 import { setupApp } from '../src/setup-app.js';
 
@@ -14,7 +18,7 @@ import { setupApp } from '../src/setup-app.js';
  */
 describe('Chat app (e2e)', () => {
   let mongod: MongoMemoryServer;
-  let app: INestApplication<App>;
+  let app: INestApplication<Server>;
 
   beforeAll(async () => {
     mongod = await MongoMemoryServer.create({ instance: { dbName: 'chat-app-e2e' } });
@@ -176,8 +180,11 @@ describe('Chat app (e2e)', () => {
       .expect(200);
     const token = login.body.accessToken as string;
 
-    // Rutas protegidas sin token -> 401
-    await request(server).get('/chats').expect(401);
+    // Rutas protegidas sin token -> 401, con la misma forma de `error` que el
+    // resto de la API (Passport lo daba como "UNAUTHORIZED" y en inglés).
+    const sinToken = await request(server).get('/chats').expect(401);
+    expect(sinToken.body.error).toBe('Unauthorized');
+    expect(sinToken.body.message).toBe('Necesitás iniciar sesión');
 
     // Un id con formato inválido es culpa del cliente, no del servidor: tiene
     // que salir 400 y no el 500 que daba el CastError de Mongoose sin manejar.

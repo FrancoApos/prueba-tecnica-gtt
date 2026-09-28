@@ -18,6 +18,24 @@ interface ErrorResponseBody {
 }
 
 /**
+ * Nombre legible del status. `HttpStatus[401]` devuelve la clave del enum
+ * (`"UNAUTHORIZED"`), que no coincide con el `"Bad Request"` / `"Not Found"`
+ * que Nest pone en el resto de las excepciones: el campo `error` terminaba
+ * cambiando de formato según de dónde saliera el rechazo.
+ */
+function reasonPhrase(statusCode: number): string {
+  const key = HttpStatus[statusCode] as string | undefined;
+  if (!key) {
+    return 'Error';
+  }
+  return key
+    .toLowerCase()
+    .split('_')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+/**
  * Normaliza cualquier excepción (HttpException o error no controlado) a un
  * shape de respuesta consistente, para que el frontend siempre pueda
  * confiar en { statusCode, error, message, path, timestamp }.
@@ -54,7 +72,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       } else if (typeof body === 'object' && body !== null) {
         const b = body as { message?: string | string[]; error?: string };
         message = b.message ?? exception.message;
-        error = b.error ?? HttpStatus[statusCode];
+        error = b.error ?? reasonPhrase(statusCode);
       }
     } else if (isCastError) {
       // `exception.path` es el campo del schema que falló (`_id`, `chatId`…);

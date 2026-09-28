@@ -1,4 +1,4 @@
-import { NotFoundException, type ArgumentsHost } from '@nestjs/common';
+import { NotFoundException, UnauthorizedException, type ArgumentsHost } from '@nestjs/common';
 import { Error as MongooseError } from 'mongoose';
 import { HttpExceptionFilter } from './http-exception.filter.js';
 
@@ -49,6 +49,14 @@ describe('HttpExceptionFilter', () => {
     expect(status).toBe(500);
     expect(body.message).toBe('Ocurrió un error inesperado');
     expect(JSON.stringify(body)).not.toContain('explotó');
+  });
+
+  it('names the status the same way whatever threw it', () => {
+    // Una UnauthorizedException sin `error` propio (la que tira Passport)
+    // salía como "UNAUTHORIZED", en otro formato que el resto de la API.
+    expect(run(new UnauthorizedException('Necesitás iniciar sesión')).body.error).toBe('Unauthorized');
+    expect(run(new NotFoundException('No está')).body.error).toBe('Not Found');
+    expect(run(castError()).body.error).toBe('Bad Request');
   });
 
   it('always answers with the same shape', () => {
