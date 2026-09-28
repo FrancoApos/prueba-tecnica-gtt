@@ -14,6 +14,8 @@ build/
 
 # Adjuntos subidos en desarrollo (no se versionan)
 backend/uploads/
+# Carpeta de subidas aislada del test del seed (se borra sola, salvo si la corrida se corta)
+backend/uploads-e2e-seed/
 
 # URI que escribe backend/start-mem-mongo.mjs al levantar el Mongo en memoria
 backend/mongo-uri.txt

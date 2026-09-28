@@ -176,7 +176,9 @@ npm test          # Jest + React Native Testing Library
 
 Logueate con dos de ellos en dos clientes distintos (por ejemplo `ana` en el celular y `bruno` en el browser) para ver los mensajes y la presencia actualizándose en vivo. Con `admin` aparecen además las acciones de editar y eliminar la cuenta de *otro* usuario en el tab **Usuarios**.
 
-> ⚠️ **Con Docker, el seed corre en cada arranque del contenedor y *borra* lo que hayas creado.** Es a propósito — `docker compose up` siempre deja el mismo estado conocido, sin pasos manuales — pero significa que si creás un usuario o mandás mensajes y después reiniciás el contenedor, eso desaparece. **No es que la persistencia falle**: los datos viven en un volumen (`mongo-data`) y sobreviven mientras el contenedor no se reinicie. Para probar que persisten de verdad, corré el backend a mano (`npm run start:dev`, sin el seed) y reiniciá el proceso: los datos siguen ahí. Ver [`backend/README.md`](backend/README.md#docker).
+> **El seed es idempotente y no pisa tus datos.** Con Docker corre en cada arranque del contenedor, pero busca cada cosa por su clave natural (el email en usuarios, el par de participantes en el chat) y solo crea lo que falta: si creás usuarios, mandás mensajes o subís una foto y después reiniciás el contenedor, **todo eso sigue ahí**. Los datos viven en volúmenes (`mongo-data` y `backend-uploads`) que sobreviven a los reinicios.
+>
+> Para volver al estado limpio conocido, cuando lo quieras vos: `npm run seed:reset` en `backend/` (vacía la base y los archivos subidos, y vuelve a sembrar). Es preferible a `docker compose down -v`, que además se lleva puesto el volumen de subidas.
 
 Detalle del seed en [`backend/README.md`](backend/README.md#datos-de-prueba-seed).
 

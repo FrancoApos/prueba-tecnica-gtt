@@ -440,3 +440,35 @@ Seis ítems que la auditoría de cumplimiento marcó en parcial y se cerraron ju
 **`HEALTHCHECK` en el Dockerfile**, aparte del que ya tenía Mongo en el compose: hace visible en `docker ps` si la app quedó arriba pero sin responder (por ejemplo, sin poder conectar a Mongo), y es lo que podría esperar un `depends_on: condition: service_healthy` si mañana algo se encadena a este servicio.
 
 **El re-seed en cada arranque se mantiene**, y ahora también limpia `uploads/`. Es intencional para un entorno de evaluación (`docker compose up` siempre da el mismo estado conocido) y está anotado como tal en `backend/README.md`; no es lo que uno querría en producción.
+
+---
+
+## 2026-09-28 — El seed pasa a ser idempotente, y Mongo deja de escuchar en la red
+
+Dos hallazgos de una revisión externa del repo, ya con todo funcionando. Los dos son correctos y se aplicaron.
+
+### Mongo estaba publicado en todas las interfaces, sin autenticación
+
+El servicio `mongo` del compose mapeaba `"27017:27017"`, que publica en **todas** las interfaces, sobre una imagen sin credenciales. Con el compose corriendo, cualquiera en la misma red Wi-Fi podía abrir la base sin password. Era por comodidad (inspeccionarla con Compass), pero contradice de lleno el "tratamiento de información sensible" que la consigna evalúa.
+
+**Decisión:** `"127.0.0.1:27017:27017"`. Conserva el único uso que tenía —mirarla desde esta máquina— y la saca de la red. **Verificado:** responde en `127.0.0.1` y da *connection refused* desde la IP de LAN.
+
+No se sacó el bloque `ports` entero, que era la otra opción: dejarlo atado a loopback, con el porqué comentado en el compose, muestra que la exposición se consideró en vez de que simplemente no esté. El backend sí sigue en `0.0.0.0:3000`, a propósito — el celular tiene que alcanzarlo por la LAN, y esa API pide JWT; Mongo no pedía nada.
+
+### El seed borraba la base en cada arranque del contenedor
+
+El `command` del compose corre `node dist/seed.js && node dist/main.js`, y el seed arrancaba con `deleteMany({})` sobre las tres colecciones. El escenario que eso habilita: quien evalúa crea un usuario, reinicia el contenedor, ve que desapareció y concluye que **la persistencia no funciona** — el criterio que más pesa en la grilla. La decisión original (estado conocido en cada `up`) era defendible y estaba documentada, pero el costo estaba mal puesto.
+
+**Decisión:** el seed pasa a ser idempotente, buscando cada entidad por su **clave natural**: el email en usuarios, `participantsKey` en el chat, y el trío chat + remitente + contenido en los mensajes. Solo crea lo que falta.
+
+**Por qué no un guard global** (`if (await countDocuments()) return`), que era lo primero que salía: una corrida que fallara a la mitad —usuarios creados, chat no— dejaría la base en un estado incompleto **para siempre**, porque todas las corridas siguientes saltarían enteras. Por clave natural, re-correrlo *repara* lo que falte sin duplicar lo que ya está. Es la diferencia entre esconder el problema y eliminar la clase entera.
+
+**El preview del chat se recalcula** desde el mensaje más nuevo que haya realmente en la conversación, no desde el último del seed: así repara una corrida a medias y, si desde la app se siguió conversando, no pisa el preview con un mensaje viejo.
+
+**El log dice siempre qué pasó** — `creados 3 usuarios, 1 chat, 3 mensajes` o `los datos de prueba ya estaban (…). No se modificó nada.` Un salto silencioso en el arranque del contenedor se confunde con una falla del seed, y ese log es lo que quien evalúa está mirando en ese preciso momento.
+
+**`npm run seed:reset`** (`seed --force`) es ahora el camino para volver al estado limpio: vacía base y archivos subidos, y vuelve a sembrar. Existe porque el `docker compose down -v` que uno usaría en su lugar **también borra el volumen de subidas** — un martillo más grande del necesario. El vaciado de `uploads/` quedó atado a `--force` justamente por eso: hacerlo en una corrida normal borraría la foto de perfil de un usuario que sigue existiendo, dejándolo apuntando a un archivo que ya no está.
+
+**El `command` del compose no se tocó.** Con el seed idempotente, `node dist/seed.js && node dist/main.js` pasa a ser seguro tal como estaba, y sigue garantizando que el primer `up` de una máquina limpia funcione con un solo comando.
+
+**Tests (`test/seed.e2e-spec.ts`, contra un Mongo real en memoria):** las dos ramas —que siembre en base vacía y que sea un no-op sobre base poblada—, más el caso que justifica toda la decisión (que un usuario y un mensaje creados desde la app sobrevivan a una corrida del seed) y el `--force`. Un mock del modelo probaría el mock, no el upsert. **Verificado además en Docker de punta a punta:** se creó una cuenta, se le subió una foto, se reinició el contenedor, y tanto el login como la foto siguieron funcionando.

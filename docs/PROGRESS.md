@@ -11,7 +11,7 @@
 - [x] Backend scaffoldeado (NestJS 12, ESM/NodeNext, Vitest, oxlint)
 - [x] Conexión a MongoDB (Mongoose)
 - [x] Mobile scaffoldeado (Expo + Expo Router + TypeScript)
-- [x] Docker (Dockerfile backend + docker-compose con Mongo) — **construido y probado de verdad el 2026-09-28**: `docker compose up --build` deja la API con datos de prueba en un comando, contenedor `healthy`, proceso corriendo como usuario `node` (no root)
+- [x] Docker (Dockerfile backend + docker-compose con Mongo) — **construido y probado de verdad el 2026-09-28**: `docker compose up --build` deja la API con datos de prueba en un comando, contenedor `healthy`, proceso corriendo como usuario `node` (no root), Mongo atado a loopback (no a la LAN) y seed idempotente, verificado que una cuenta con foto creada desde la app sobrevive a un reinicio del contenedor
 
 ## Backend
 - [x] Estructura de módulos (auth, users, chats, messages, common, config)
@@ -24,8 +24,8 @@
 - [x] Validaciones (DTOs con class-validator, ValidationPipe global whitelist+forbidNonWhitelisted)
 - [x] Manejo de errores global (`HttpExceptionFilter`, shape consistente)
 - [x] Swagger en `/docs` (con Bearer auth)
-- [x] Tests unitarios (36, incluye los seis de la foto de perfil —reemplazo que borra el archivo anterior, borrado al eliminar la cuenta, y que el nombre en disco salga de lo guardado y no del segmento pedido, o sea sin path traversal—, la presencia del gateway —multi-sesión, offline al cerrar la última, socket sin token— y el orden del listado de usuarios) + e2e (4: health, flujo completo + control de acceso self-or-admin, subida/descarga de un adjunto verificando que conserve su nombre original, y el ciclo entero de la foto de perfil —subir, servir inline, rechazar un SVG con 415, reemplazar borrando la anterior, quitar, y que otro usuario no pueda tocarla—; con `mongodb-memory-server`, sin depender de Docker/Mongo externo)
-- [x] Seed de datos de prueba (`npm run seed`) con credenciales documentadas
+- [x] Tests unitarios (36, incluye los seis de la foto de perfil —reemplazo que borra el archivo anterior, borrado al eliminar la cuenta, y que el nombre en disco salga de lo guardado y no del segmento pedido, o sea sin path traversal—, la presencia del gateway —multi-sesión, offline al cerrar la última, socket sin token— y el orden del listado de usuarios) + e2e (4: health, flujo completo + control de acceso self-or-admin, subida/descarga de un adjunto verificando que conserve su nombre original, y el ciclo entero de la foto de perfil —subir, servir inline, rechazar un SVG con 415, reemplazar borrando la anterior, quitar, y que otro usuario no pueda tocarla—; más 4 del seed en `test/seed.e2e-spec.ts` —que siembre en base vacía, que sea no-op sobre base poblada, que no borre lo creado desde la app, y el `--force`—; con `mongodb-memory-server`, sin depender de Docker/Mongo externo)
+- [x] Seed de datos de prueba (`npm run seed`) con credenciales documentadas — **idempotente**: busca cada entidad por su clave natural (email, `participantsKey`, chat+remitente+contenido) y solo crea lo que falta, así que el re-seed de cada arranque del contenedor no se lleva puesto lo creado desde la app. `npm run seed:reset` (`--force`) vacía base y uploads para volver al estado limpio
 
 ## Mobile
 - [x] Navegación (login, chats, conversación, perfil) — Expo Router con `Stack.Protected` para el gate de auth

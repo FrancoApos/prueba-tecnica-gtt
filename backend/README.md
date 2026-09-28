@@ -63,7 +63,26 @@ Con Mongo corriendo y `MONGODB_URI` apuntando a él:
 npm run seed
 ```
 
-Esto **borra** las colecciones `users`, `chats` y `messages` de esa base y crea 3 usuarios (2 `user` + 1 `admin`) con un chat y algunos mensajes entre los dos primeros.
+Crea 3 usuarios (2 `user` + 1 `admin`) con un chat y algunos mensajes entre los dos primeros.
+
+**Es idempotente**: busca cada cosa por su clave natural (el email en usuarios, `participantsKey` en el chat, y el trío chat + remitente + contenido en los mensajes) y solo crea lo que falta. Volver a correrlo no duplica nada y **no toca** lo que se haya creado desde la app. El log dice siempre qué hizo:
+
+```
+Seed: creados 3 usuarios, 1 chat, 3 mensajes. Ya existían: 0 usuarios, 0 chats, 0 mensajes.
+Seed: los datos de prueba ya estaban (3 usuarios, 1 chat, 3 mensajes). No se modificó nada.
+```
+
+Eso es lo que hace seguro que el `docker-compose.yml` lo corra en **cada arranque** del contenedor (ver [Docker](#docker)): el primer `up` de una máquina limpia deja la API con datos, y un reinicio posterior ya no se lleva puesto lo que haya hecho quien la está probando.
+
+No se usa un guard global del tipo *"si ya hay usuarios, no hagas nada"*: con eso, una corrida que hubiera fallado a la mitad (usuarios creados, chat no) dejaría la base incompleta **para siempre**, porque las siguientes saltarían enteras. Por clave natural, re-correrlo repara lo que falte.
+
+Para volver al estado limpio conocido:
+
+```bash
+npm run seed:reset   # = seed --force: vacía base y uploads, y vuelve a sembrar
+```
+
+Es preferible a `docker compose down -v`, que además borra el volumen de subidas.
 
 **Credenciales de prueba** (mismo password para las tres cuentas):
 
@@ -84,7 +103,7 @@ docker run -p 3000:3000 -e MONGODB_URI=... -e JWT_SECRET=... chat-app-backend
 docker compose up --build
 ```
 
-`docker-compose.yml` (en la raíz del repo) levanta Mongo y el backend juntos, con un volumen para persistir los adjuntos entre reinicios del contenedor. El backend espera a que Mongo esté realmente listo (`healthcheck`, no solo "el contenedor arrancó") y **corre el seed automáticamente antes de levantar el server** — con un solo `docker compose up --build` la API queda arriba con las 3 cuentas de prueba ya cargadas, sin pasos manuales. Esto re-siembra la base en cada reinicio del contenedor (a propósito, para un entorno de evaluación/demo con estado conocido — no es el comportamiento que se querría en producción). El re-seed también vacía `uploads/`, para que no queden archivos que ya nadie referencia.
+`docker-compose.yml` (en la raíz del repo) levanta Mongo y el backend juntos, con un volumen para persistir los adjuntos entre reinicios del contenedor. El backend espera a que Mongo esté realmente listo (`healthcheck`, no solo "el contenedor arrancó") y **corre el seed automáticamente antes de levantar el server** — con un solo `docker compose up --build` la API queda arriba con las 3 cuentas de prueba ya cargadas, sin pasos manuales. El seed corre en cada arranque del contenedor, pero **es idempotente** (ver [Datos de prueba](#datos-de-prueba-seed)): solo crea lo que falta, así que un reinicio no se lleva puesto lo que hayas creado desde la app. Para volver al estado limpio: `npm run seed:reset`.
 
 **Verificado corriendo** (2026-09-28): build, arranque, contenedor `healthy`, y contra la API del contenedor — login, subida/servido/borrado de la foto de perfil, rechazo de un formato no permitido, y subida/descarga de un adjunto. El proceso corre como el usuario **`node`, no como root**, y la carpeta de subidas se crea en la imagen con ese dueño para que el volumen la herede (si no, el volumen nacería de root y el proceso no podría escribir). Si venís de una versión vieja de la imagen y ves errores de permisos sobre `uploads/`, `docker compose down -v` recrea el volumen.
 
@@ -181,7 +200,7 @@ Detalle completo en [`docs/DECISIONS.md`](../docs/DECISIONS.md). Puntos clave:
 - **Tiempo real como *push* sobre REST**: el gateway de Socket.IO no acepta escrituras; el mensaje se persiste por HTTP y recién entonces se empuja a los participantes. Evita duplicar validación/autorización en un segundo camino de escritura.
 - **Chats solo 1 a 1** (no grupales) — ver `docs/DECISIONS.md` y `docs/DATA_MODEL.md`.
 - **Adjuntos** se guardan en disco (`uploads/`) y se sirven en `/uploads/*` por `AttachmentsController` y no por el servidor de estáticos — sin S3 ni base64. El archivo queda en disco con un UUID como nombre, así que hace falta consultar la base para devolverlo con su nombre original en el `Content-Disposition`; ese header va siempre como `attachment`, que también evita que un `.html`/`.svg` subido como adjunto se ejecute en el origen de la API. Ver justificación en `docs/DECISIONS.md`.
-- **La foto de perfil es un archivo subido, no una URL**: `POST /users/:id/avatar` la guarda en `uploads/avatars/` y `avatarUrl` **no es escribible por el cliente** (no está en `CreateUserDto` ni en `UpdateUserDto`) — el valor lo arma el servidor. Solo acepta png/jpeg/webp: **nunca SVG**, porque a diferencia de un adjunto un avatar se sirve inline y un SVG con `<script>` sería XSS almacenado en el origen de la API. El archivo anterior se borra al reemplazar la foto, al quitarla, al borrar la cuenta y al re-seedear. Ver `docs/DECISIONS.md`.
+- **La foto de perfil es un archivo subido, no una URL**: `POST /users/:id/avatar` la guarda en `uploads/avatars/` y `avatarUrl` **no es escribible por el cliente** (no está en `CreateUserDto` ni en `UpdateUserDto`) — el valor lo arma el servidor. Solo acepta png/jpeg/webp: **nunca SVG**, porque a diferencia de un adjunto un avatar se sirve inline y un SVG con `<script>` sería XSS almacenado en el origen de la API. El archivo anterior se borra al reemplazar la foto, al quitarla, al borrar la cuenta y al correr `seed:reset`. Ver `docs/DECISIONS.md`.
 
 ## Alcance pendiente / conocido
 
