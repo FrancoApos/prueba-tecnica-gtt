@@ -2,8 +2,18 @@ services:
   mongo:
     image: mongo:7
     restart: unless-stopped
+    # Atado a loopback a propósito. Este Mongo no tiene autenticación (no hace
+    # falta: el único que le habla es el backend, por la red interna del
+    # compose), así que publicarlo como "27017:27017" lo dejaría escuchando en
+    # *todas* las interfaces — cualquiera en la misma red Wi-Fi podría abrir la
+    # base sin credenciales mientras el compose corre. Con el prefijo
+    # 127.0.0.1 sigue siendo accesible desde esta máquina, que es lo único que
+    # se quería (inspeccionarla con Compass o mongosh), y desde ningún otro
+    # lado. Si no te hace falta ni eso, borrá el bloque `ports` entero: el
+    # backend le llega igual, y para mirar la base está
+    # `docker compose exec mongo mongosh`.
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     volumes:
       - mongo-data:/data/db
     healthcheck:
